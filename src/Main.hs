@@ -12,7 +12,8 @@ import Database.Design.Ampersand.Components
 
 main :: IO ()
 main =
- do opts <- getOptions
+ do timBernersLee
+    opts <- getOptions
     if showVersion opts || showHelp opts
     then mapM_ putStr (helpNVersionTexts ampersandVersionStr opts)
     else do gFSpec <- createFSpec opts
