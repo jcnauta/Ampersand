@@ -157,6 +157,25 @@ class AngularApp {
 
 		$this->addHtmlLine('<title>'.Config::get('contextName').'</title>');
 
+		// Add stuff for favicons - the favicons can be generated at http://www.favicon-generator.org/, and everything should be put in app/images/favicons/
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="57x57" href="app/images/favicons/apple-icon-57x57.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="60x60" href="app/images/favicons/apple-icon-60x60.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="72x72" href="app/images/favicons/apple-icon-72x72.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="76x76" href="app/images/favicons/apple-icon-76x76.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="114x114" href="app/images/favicons/apple-icon-114x114.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="120x120" href="app/images/favicons/apple-icon-120x120.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="144x144" href="app/images/favicons/apple-icon-144x144.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="152x152" href="app/images/favicons/apple-icon-152x152.png">');
+		$this->addHtmlLine('<link rel="apple-touch-icon" sizes="180x180" href="app/images/favicons/apple-icon-180x180.png">');
+		$this->addHtmlLine('<link rel="icon" type="image/png" sizes="192x192"  href="app/images/favicons/android-icon-192x192.png">');
+		$this->addHtmlLine('<link rel="icon" type="image/png" sizes="32x32" href="app/images/favicons/favicon-32x32.png">');
+		$this->addHtmlLine('<link rel="icon" type="image/png" sizes="96x96" href="app/images/favicons/favicon-96x96.png">');
+		$this->addHtmlLine('<link rel="icon" type="image/png" sizes="16x16" href="app/images/favicons/favicon-16x16.png">');
+		$this->addHtmlLine('<link rel="manifest" href="app/images/favicons/manifest.json">');
+		$this->addHtmlLine('<meta name="msapplication-TileColor" content="#ffffff">');
+		$this->addHtmlLine('<meta name="msapplication-TileImage" content="app/images/favicons/ms-icon-144x144.png">');
+		$this->addHtmlLine('<meta name="theme-color" content="#ffffff">');
+
 		// Meta tags
 		$this->addHtmlLine('<meta name="viewport" content="width=device-width, initial-scale=1.0"/>');
 		$this->addHtmlLine('<meta charset="UTF-8">');
@@ -267,8 +286,6 @@ class AngularApp {
 
 		// Add js files to html output
 		foreach (AngularApp::$jsFiles as $file) $this->addHtmlLine('<script src="'.$file.'"></script>');
-
-		$this->addHtmlLine('</head>');
 
 		$this->addHtmlLine('<body>');
 
