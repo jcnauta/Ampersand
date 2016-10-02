@@ -326,7 +326,7 @@ instance ShowADL P_Population where
     where indent = "   "
           showContent = case pop of
                           P_RelPopu{} -> map showADL (p_popps pop)
-                          P_CptPopu{} -> map (showADL.head) (p_popas pop)
+                          P_CptPopu{} -> map (showADL . head) (p_popas pop)
 instance ShowADL PAtomPair where
  showADL p = "("++showADL (head$ppLeft p)++","++ showADL (head$ppRight p)++")"
 instance ShowADL AAtomPair where
@@ -350,32 +350,27 @@ instance ShowADL Population where
                           ARelPopu{} -> map showADL (popps pop)
                           ACptPopu{} -> map showADL (popas pop)
 
--- showADL (ARelPopu r pairs)
---  = "POPULATION "++showADL r++" CONTAINS\n"++
---    indent++"[ "++intercalate ("\n"++indent++", ") (map (\(x,y)-> showatom x++" * "++ showatom y) pairs)++indent++"]"
---    where indent = "   "
-
 instance ShowADL PAtomValue where
  showADL at = case at of
-              PSingleton _ s   -> show s
-              ScriptString _ s -> show s
-              XlsxString _ s   -> show s
-              ScriptInt _ s    -> show s
-              ScriptFloat  _ x -> show x
-              XlsxDouble _ d   -> show d
-              ComnBool   _ b   -> show b
-              ScriptDate _ x   -> show x
+              PSingleton _ s     -> show s
+              ScriptString _ s   -> show s
+              XlsxString _ s     -> show s
+              ScriptInt _ s      -> show s
+              ScriptFloat  _ x   -> show x
+              XlsxDouble _ d     -> show d
+              ComnBool   _ b     -> show b
+              ScriptDate _ x     -> show x
               ScriptDateTime _ x -> show x
               
 instance ShowADL AAtomValue where
  showADL at = case at of
-              AAVString{} -> show (aavstr at)
+              AAVString{}      -> show (aavstr at)
               AAVInteger _ i   -> show i
               AAVFloat   _ f   -> show f
               AAVBoolean _ b   -> show b
               AAVDate _ day    -> show day
               AAVDateTime _ dt -> show dt
-              AtomValueOfONE -> "1"
+              AtomValueOfONE   -> "1"
 
 instance ShowADL TermPrim where
  showADL (PI _)                   = "I"

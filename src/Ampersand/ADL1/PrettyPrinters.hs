@@ -384,8 +384,8 @@ instance Pretty Prop where
                 Prop -> "PROP"
 
 instance Pretty PAtomPair where
-    pretty (PPair _ l r) = text "(" <+> pretty l 
-                       <~> text "," <+> pretty r 
+    pretty (PPair _ l r) = text "(" <+> pretty (head l) 
+                       <~> text "," <+> pretty (head r)
                        <~> text ")"
 
 instance Pretty PAtomValue where
