@@ -641,24 +641,25 @@ rightAssociate combinator operator term
 
 --- RelationRef ::= NamedRel | 'I' ('[' ConceptOneRef ']')? | 'V' Signature? | Singleton ('[' ConceptOneRef ']')?
 pRelationRef :: AmpParser TermPrim
-pRelationRef      = PNamedR <$> pNamedRel
-                <|> pid   <$> currPos <* pKey "I" <*> pMaybe (pBrackets pConceptOneRef)
-                <|> pfull <$> currPos <* pKey "V" <*> pMaybe pSign
-                <|> Patm  <$> currPos <*> pSingleton <*> pMaybe (pBrackets pConceptOneRef)
+pRelationRef      = PNamedR   <$> pNamedRel
+                <|> pid       <$> currPos <* pKey "I" <*> pMaybe (pBrackets pConceptOneRef)
+                <|> pfull     <$> currPos <* pKey "V" <*> pMaybe pSign
+                <|> makePAtm  <$> currPos <*> pAtomInExpression <*> pMaybe (pBrackets pConceptOneRef)
+                <|> PBuiltInR <$> currPos <*> (pKey "_SESSION" *> pure PBISession)
                     where pid orig Nothing = PI orig
                           pid orig (Just c)= Pid orig c
                           pfull orig Nothing = PVee orig
                           pfull orig (Just (P_Sign src trg)) = Pfull orig src trg
 
-pSingleton :: AmpParser PSingleton
-pSingleton = value2PAtomValue <$> currPos <*> pAtomInExpression
+makePAtm :: Origin -> (Value, [Value]) -> Maybe P_Concept -> TermPrim
+makePAtm ps (h,tl) tp = Patm ps (value2PAtomValue ps h) (map (value2PAtomValue ps) tl) tp
 
-pAtomValue :: AmpParser PAtomValue
-pAtomValue = value2PAtomValue <$> currPos <*> pAtomValInPopulation
+pAtomValue :: AmpParser [PAtomValue]
+pAtomValue = map . value2PAtomValue <$> currPos <*> (uncurry (:) <$> pAtomInExpression)
 
 value2PAtomValue :: Origin -> Value -> PAtomValue
 value2PAtomValue o v = case v of
-         VSingleton s x -> PSingleton o s (fmap (value2PAtomValue o) x)
+         VSingleton s -> PSingleton o s
          VRealString s  -> ScriptString o s
          VInt i         -> ScriptInt o (toInteger i)
          VFloat x       -> ScriptFloat o x

@@ -49,6 +49,8 @@ keywords  = nub [ "CONTEXT", "ENDCONTEXT"
                 , "RULE", "MESSAGE", "VIOLATION", "TXT", "SRC", "TGT"
                 , "I", "V", "ONE"
                 , "ROLE", "MAINTAINS"
+                -- Keywords for built-in relations
+                , "_SESSION"
                 -- Keywords for purposes
                 , "PURPOSE", "REF"
                 , "REST", "HTML", "LATEX", "MARKDOWN"

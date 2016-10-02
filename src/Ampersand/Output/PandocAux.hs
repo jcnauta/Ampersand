@@ -408,9 +408,14 @@ instance ShowMath Expression where
           showExpr (EDcD d)     = "\\text{"++latexEscShw (name d)++"}"
           showExpr (EDcI c)     = "I_{[\\text{"++latexEscShw (name c)++"}]}"
           showExpr  EEps{}      = "" -- fatal 417 "EEps may occur only in combination with composition (semicolon)."  -- SJ 2014-03-11: Are we sure about this? Let's see if it ever occurs...
-          showExpr (EDcV sgn)   = "V_{[\\text{"++latexEscShw (name (source sgn))++"}"++"*"
-                                   ++"\\text{"++latexEscShw (name (target sgn))++"}]}"
+          showExpr (EDcV sgn)   = "V" ++ showSgn sgn
           showExpr (EMp1 val _) = "`\\text{"++(latexEscShw . showADL $ val)++"}`"
+          showExpr (EBlt v sgn) = showBlt v ++ showSgn sgn
+
+          showSgn sgn = "_{[\\text{"++latexEscShw (name (source sgn))++"}"++"*"
+                                   ++"\\text{"++latexEscShw (name (target sgn))++"}]}"
+
+          showBlt BISession = "\\session"
 
 -- add extra parentheses to consecutive superscripts, since latex cannot handle these
 -- (this is not implemented in insParentheses because it is a latex-specific issue)

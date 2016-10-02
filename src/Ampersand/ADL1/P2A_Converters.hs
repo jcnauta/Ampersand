@@ -43,6 +43,7 @@ instance Named Type where
 
 typeOrConcept :: Type -> Either A_Concept (Maybe TType)
 typeOrConcept (BuiltIn TypeOfOne)  = Left  ONE
+typeOrConcept (BuiltIn Session)    = Left$ makeConcept "SESSION"
 typeOrConcept (UserConcept s)      = Left$ makeConcept s
 typeOrConcept (BuiltIn x)          = Right (Just x)
 typeOrConcept RepresentSeparator = Right Nothing
@@ -529,7 +530,7 @@ pCtx2aCtx opts
               -> ACptPopu { popcpt = cpt
                           , popas  = vals
                           }
-              ) <$> traverse (pAtomValue2aAtomValue contextInfo cpt) (p_popas pop)
+              ) <$> traverse (pAtomValues2aAtomValue contextInfo cpt) (p_popas pop)
     -- isMoreGeneric :: a2 -> t -> SrcOrTgt -> Type -> Guarded Type
     isMoreGeneric o dcl sourceOrTarget givenType
      = if givenType `elem` findExact genLattice (Atom (getConcept sourceOrTarget dcl) `Meet` Atom givenType)
@@ -540,8 +541,17 @@ pCtx2aCtx opts
     pAtomPair2aAtomPair :: ContextInfo -> Declaration -> PAtomPair -> Guarded AAtomPair
     pAtomPair2aAtomPair contextInfo dcl pp = 
      mkAtomPair 
-       <$> pAtomValue2aAtomValue contextInfo (source dcl) (ppLeft  pp)
-       <*> pAtomValue2aAtomValue contextInfo (target dcl) (ppRight pp)
+       <$> pAtomValues2aAtomValue contextInfo (source dcl) (ppLeft  pp)
+       <*> pAtomValues2aAtomValue contextInfo (target dcl) (ppRight pp)
+    
+
+    pAtomValues2aAtomValue :: ContextInfo -> A_Concept -> [PAtomValue] -> Guarded AAtomValue
+    pAtomValues2aAtomValue contextInfo cpt (pav:ls@(_:_))
+     = case pAtomValue2aAtomValue contextInfo cpt pav of
+         Errors _ -> pAtomValues2aAtomValue contextInfo cpt ls
+         x -> x
+    pAtomValues2aAtomValue contextInfo cpt [pav] = pAtomValue2aAtomValue contextInfo cpt pav
+    pAtomValues2aAtomValue _ _ [] = fatal 553 "pAtomValues2AtomValue called on an empty list!"
 
     pAtomValue2aAtomValue :: ContextInfo -> A_Concept -> PAtomValue -> Guarded AAtomValue
     pAtomValue2aAtomValue contextInfo cpt pav =
@@ -832,11 +842,12 @@ pCtx2aCtx opts
      = (x, case x of
            PI _        -> Ident
            Pid _ conspt-> Known (EDcI (pCpt2aCpt conspt))
-           Patm _ s Nothing -> Mp1 s
-           Patm _ s (Just conspt) -> Known (EMp1 s (pCpt2aCpt conspt))
+           Patm _ s _ Nothing -> Mp1 s
+           Patm _ s _ (Just conspt) -> Known (EMp1 s (pCpt2aCpt conspt))
            PVee _      -> Vee
            Pfull _ a b -> Known (EDcV (Sign (pCpt2aCpt a) (pCpt2aCpt b)))
            PNamedR nr -> Rel $ disambNamedRel nr
+           PBuiltInR _ PBISession -> Known $ EBlt BISession (Sign (makeConcept "SESSION") (makeConcept "SESSION"))
         )
       where
         disambNamedRel (PNamedRel _ r Nothing)  = map EDcD . Map.elems $ findDecls declMap r

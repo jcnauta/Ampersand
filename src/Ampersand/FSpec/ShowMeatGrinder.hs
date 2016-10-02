@@ -96,10 +96,10 @@ instance MetaPopulations A_Context where
            [(dirtyId ctx p, dirtyId ctx ctx) | p<-ctxpats ctx]
     , Pop "ctxrs" "Rule" "Context" [Uni]                        -- The context in which a rule is declared.
            [(dirtyId ctx r, dirtyId ctx ctx) | r<-ctxrs ctx]
-    , Pop "udefrules" "Rule" "Context" [Uni]                         -- ^ all rules the user has declared within this viewpoint,
+    , Pop "udefrules" "Rule" "Context" [Uni]                         --  all rules the user has declared within this viewpoint,
                                      --   which are not multiplicity- and not identity rules. See ViewPoint.hs
            [(dirtyId ctx r, dirtyId ctx ctx) | r<-udefrules ctx]
-    , Pop "multrules" "Rule" "Context" [Uni]                         -- ^ all multiplicityrules the user has declared within this viewpoint. See ViewPoint.hs
+    , Pop "multrules" "Rule" "Context" [Uni]                         --  all multiplicityrules the user has declared within this viewpoint. See ViewPoint.hs
            [(dirtyId ctx r, dirtyId ctx ctx) | r<-multrules ctx]
     , Pop "identityRules" "Rule" "Context" [Uni]                     -- all identity rules the user has declared within this viewpoint. See ViewPoint.hs
            [(dirtyId ctx r, dirtyId ctx ctx) | r<-identityRules ctx]
@@ -479,9 +479,8 @@ instance MetaPopulations Expression where
                             ,Pop "userTrg"  (show "V") "Concept"  [Uni,Tot]
                               [(dirtyId ctx expr,dirtyId ctx (target sgn))]
                             ]
-            (EMp1 v _)   -> [ Pop "singleton" "Singleton" "AtomValue" [Uni,Tot]
-                              [(dirtyId ctx expr,showADL v)]
-                            ]
+            (EMp1 v _)   -> [ ] -- Same as for I: this isn't a relation either, and it does not introduce any atoms
+            (EBlt _ _)   -> [ ] -- As with EMp1
        ) 
   where
     ctx = originalContext fSpec

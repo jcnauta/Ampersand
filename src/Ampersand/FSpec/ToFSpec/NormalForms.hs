@@ -482,7 +482,7 @@ term2rTerm term
            Prim (PNamedR (PNamedRel _ str (Just sgn))) -> RVar str (name (pSrc sgn)) (name (pTgt sgn))
            Prim (Pid _ c)           -> RId  (pCpt2aCpt c)
            Prim (Pfull _ s t)       -> RVee (pCpt2aCpt s) (pCpt2aCpt t)
-           Prim (Patm _ a (Just c)) -> RAtm a (pCpt2aCpt c)
+           Prim (Patm _ a _ (Just c)) -> RAtm a (pCpt2aCpt c)
            _                        -> fatal 381 ("Cannot cope with untyped "++showADL term++" in a dRule inside the normalizer.")
 
 expr2RTerm :: Expression -> RTerm
@@ -542,6 +542,7 @@ expr2RTerm expr
           EEps{}               -> RConst expr
           EDcV sgn             -> RVee (source sgn) (target sgn)
           EMp1 a c             -> RAtm a c
+          EBlt _ _ -> fatal 488 "Cannot use a built-in relation in a rewrite rule as its contents depends on where it's used"
 --   --      _                    -> RConst expr   -- This alternative has been commented out to avoid an "overlapping patterns" warning from Haskell.
 
 rTerm2expr :: RTerm -> Expression

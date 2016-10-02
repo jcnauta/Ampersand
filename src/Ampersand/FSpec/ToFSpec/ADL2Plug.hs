@@ -253,7 +253,8 @@ suitableAsKey st =
     Integer          -> True
     Float            -> False
     Object           -> True
-    TypeOfOne        -> fatal 143 $ "ONE has no key at all. does it?"
+    Session          -> True
+    TypeOfOne        -> fatal 143 $ "ONE has no key at all. does it?" -- SJC: One has one element, but it is usually not stored in the database as a column or something like that. Hence, it is probably not suitable as a key
 
  
 

@@ -235,3 +235,4 @@ positiveIn expr decl = f expr   -- all are True, so an insert in rel means an in
   f EEps{}       = []
   f EDcV{}       = []
   f EMp1{}       = []
+  f EBlt{}       = []

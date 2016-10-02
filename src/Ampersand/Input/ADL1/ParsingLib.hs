@@ -148,37 +148,38 @@ pCrudString = check (\lx -> case lx of
                          else test xs (y:ys)
 
 --- Atom ::= "'" Any* "'"
-pAtomInExpression :: AmpParser Value
+pAtomInExpression :: AmpParser (Value,[Value])
 pAtomInExpression = check (\lx -> case lx of
-                                   LexSingleton s -> Just (VSingleton s (mval s))
+                                   LexSingleton s -> Just (VSingleton s,allValues s)
                                    _              -> Nothing
                           ) <?> "Singleton value"
    where
-    mval s =
+    allValues s = catMaybes $ map (tryValue s) pAtomValInPopulation
+    tryValue s p =
       case lexer [] (fatal 141 $ "Reparse without fileName of `"++s ++"`") s of
         Left _  -> Nothing
         Right (toks,_)
-           -> case runParser pAtomValInPopulation
-                               (FilePos ("Reparse `"++s++"` ") 0 0) -- Todo: Fix buggy position
+           -> case runParser p (FilePos ("Reparse `"++s++"` ") 0 0) -- Todo: Fix buggy position
                                 "" toks of
                 Left _ -> Nothing
                 Right a -> Just a
 
 data Value = VRealString String
-           | VSingleton String (Maybe Value)
+           | VSingleton String
            | VInt Int
            | VFloat Double
            | VBoolean Bool
            | VDateTime UTCTime
            | VDate Day
-pAtomValInPopulation :: AmpParser Value
+pAtomValInPopulation :: [AmpParser Value]
 pAtomValInPopulation =
-              VBoolean True  <$ pKey "TRUE"
-          <|> VBoolean False <$ pKey "FALSE"
-          <|> VRealString DF.<$> pString
-          <|> VDateTime DF.<$> pUTCTime
-          <|> VDate DF.<$> pDay
-          <|> fromNumeric DF.<$> pNumeric
+          [ VBoolean True  <$ pKey "TRUE"
+          , VBoolean False <$ pKey "FALSE"
+          , VRealString DF.<$> pString
+          , VDateTime DF.<$> pUTCTime
+          , VDate DF.<$> pDay
+          , fromNumeric DF.<$> pNumeric -- TODO: turn this into two options
+          ]
    where fromNumeric :: Either Int Double -> Value
          fromNumeric num = case num of
              Left i -> VInt i

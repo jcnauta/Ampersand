@@ -196,15 +196,19 @@ instance Pretty a => Pretty (Term a) where
              pre t op     = text op <> pretty t
              two t1 t2 op = pretty t1 <> text op <> pretty t2
 
+instance Pretty P_Builtin where
+  pretty PBISession = text "_SESSION"
+
 instance Pretty TermPrim where
     pretty p = case p of
         PI _ -> text "I"
         Pid _ concept -> text "I[" <> pretty concept <> text "]"
-        Patm _ val (Just concept) -> text (show val) <> text "[" <> pretty concept <> text "]"
-        Patm _ val Nothing        -> text (show val) 
+        Patm _ val _ (Just concept) -> text (show val) <> text "[" <> pretty concept <> text "]"
+        Patm _ val _ Nothing        -> text (show val) 
         PVee _ -> text "V"
         Pfull _ s1 s2 -> text "V" <~> P_Sign s1 s2
         PNamedR rel -> pretty rel
+        PBuiltInR _ b -> pretty b
 
 --instance Pretty PSingleton where
 --    pretty = text . show
@@ -387,9 +391,7 @@ instance Pretty PAtomPair where
 instance Pretty PAtomValue where
     pretty pav =  
       case pav of 
-       PSingleton   _ _ mav -> case mav of
-                                Nothing  -> fatal 405 $ "The singleton "++show pav++" has no type, so it cannot be accuratly prettyprinted in a population statement."
-                                Just val -> pretty val
+       PSingleton   _ str -> pretty str
        ScriptString   _ s -> text . show $ s
        XlsxString     _ s -> text . show $ s
        ScriptInt      _ i -> text . show $ i

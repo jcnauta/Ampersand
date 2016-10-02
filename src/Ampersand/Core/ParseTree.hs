@@ -17,6 +17,7 @@ module Ampersand.Core.ParseTree (
    , Representation(..), TType(..)
    , P_Population(..)
    , PAtomPair(..), PAtomValue(..), mkPair, PSingleton, makePSingleton
+   , P_Builtin(..)
    , P_ObjectDef, P_SubInterface, P_Interface(..), P_IClass(..), P_ObjDef(..), P_SubIfc(..)
    , P_Cruds(..)
    , P_IdentDef, P_IdentDf(..) , P_IdentSegment, P_IdentSegmnt(..)
@@ -183,6 +184,7 @@ data TType
   | Date | DateTime
   | Boolean | Integer | Float | Object
   | TypeOfOne --special type for the special concept ONE.
+  | Session --and for the sessions
      deriving (Eq, Ord, Typeable)
 instance Unique TType where
  showUnique = show
@@ -202,6 +204,7 @@ instance Show TType where
     Float             ->   "FLOAT"
     Object            ->   "OBJECT"
     TypeOfOne         ->   "TYPEOFONE"
+    Session           ->   "SESSION"
 data P_Declaration =
       P_Sgn { dec_nm :: String    -- ^ the name of the declaration
             , dec_sign :: P_Sign    -- ^ the type. Parser must guarantee it is not empty.
@@ -235,36 +238,21 @@ instance Traced P_Declaration where
 
 data PAtomPair
   = PPair { pos :: Origin
-          , ppLeft  :: PAtomValue
-          , ppRight :: PAtomValue
+          , ppLeft  :: [PAtomValue]
+          , ppRight :: [PAtomValue]
           } deriving (Eq,Ord,Show) -- Show is for QuickCheck error messages and/or input redundancy removal only!
 instance Traced PAtomPair where
   origin = pos
 instance Flippable PAtomPair where
   flp pr = pr{ppLeft = ppRight pr
              ,ppRight = ppLeft pr}
---data PSingleton
---  = PSingleton { pos :: Origin
---               , psRaw  :: String
---               , psInterprets :: [PAtomValue]
---               }
---instance Show PSingleton where
--- show = psRaw
---instance Eq PSingleton where
--- a == b = psRaw a == psRaw b
---instance Ord PSingleton where
--- compare a b = compare (psRaw a) (psRaw b)
---instance Traced PSingleton where
--- origin = pos
+
 type PSingleton = PAtomValue
 makePSingleton :: String -> PSingleton
-makePSingleton s = PSingleton (Origin "ParseTree.hs") s Nothing
---   PSingleton { psOrig =Origin "ParseTree.hs"
---              , psRaw = s
---              , psInterprets = fatal 241 "Probably no need to make something up..."
---              }
+makePSingleton s = PSingleton (Origin "ParseTree.hs") s
+
 data PAtomValue
-  = PSingleton Origin String (Maybe PAtomValue)
+  = PSingleton Origin String
   | ScriptString Origin String -- string from script char to enquote with when printed
   | XlsxString Origin String
   | ScriptInt Origin Integer
@@ -277,7 +265,7 @@ data PAtomValue
 instance Show PAtomValue where -- Used for showing in Expressions as PSingleton
  show pav =
   case pav of
-    PSingleton   _ s _ -> singleQuote s
+    PSingleton     _ s -> singleQuote s
     ScriptString   _ s -> singleQuote s
     XlsxString     _ s -> singleQuote s
     ScriptInt      _ i -> singleQuote (show i)
@@ -293,30 +281,13 @@ instance Show PAtomValue where -- Used for showing in Expressions as PSingleton
      f '\'' = "\\'"
      f c    = [c]
 instance Eq PAtomValue where
-  PSingleton _ s _ == PSingleton _ s' _ = s == s'
-  PSingleton _ _ _ == _                 = False
-  ScriptString _ s == ScriptString _ s' = s == s'
-  ScriptString _ _ == _                 = False
-  XlsxString   _ s == XlsxString   _ s' = s == s'
-  XlsxString   _ _ == _                 = False
-  ScriptInt    _ i == ScriptInt    _ i' = i == i'
-  ScriptInt    _ _ == _                 = False
-  ScriptFloat  _ x == ScriptFloat  _ x' = x == x'
-  ScriptFloat  _ _ == _                 = False
-  XlsxDouble   _ d == XlsxDouble   _ d' = d == d'
-  XlsxDouble   _ _ == _                 = False
-  ScriptDate   _ d == ScriptDate   _ d' = d == d'
-  ScriptDate   _ _ == _                 = False
-  ScriptDateTime _ d == ScriptDateTime _ d' = d == d'
-  ScriptDateTime _ _ == _               = False
-  ComnBool     _ b == ComnBool     _ b' = b == b'
-  ComnBool     _ _ == _                 = False
+  a == b = compare a b == EQ
 
 instance Ord PAtomValue where
   compare a b =
    case (a,b) of
-    (PSingleton  _ x _ , PSingleton   _ x' _) -> compare x x'
-    (PSingleton  _ _ _ , _                  ) -> GT
+    (PSingleton     _ x, PSingleton     _ x') -> compare x x'
+    (PSingleton     _ _, _                  ) -> GT
     (ScriptString   _ x, ScriptString   _ x') -> compare x x'
     (ScriptString   _ _, _                  ) -> GT
     (XlsxString     _ x, XlsxString     _ x') -> compare x x'
@@ -336,7 +307,7 @@ instance Ord PAtomValue where
 instance Traced PAtomValue where
   origin pav =
    case pav of
-    PSingleton   o _ _ -> o
+    PSingleton     o _ -> o
     ScriptString   o _ -> o
     XlsxString     o _ -> o
     ScriptInt      o _ -> o
@@ -346,7 +317,7 @@ instance Traced PAtomValue where
     ScriptDate     o _ -> o
     ScriptDateTime o _ -> o
 
-mkPair :: Origin -> PAtomValue -> PAtomValue -> PAtomPair
+mkPair :: Origin -> [PAtomValue] -> [PAtomValue] -> PAtomPair
 mkPair o l r
    = PPair { pos   = o
            , ppLeft  = l
@@ -359,17 +330,15 @@ data TermPrim
                                             --   to know whether an eqClass represents a concept, we only look at its witness
                                             --   By making Pid the first in the data decleration, it becomes the least element for "deriving Ord".
    | Pid Origin P_Concept                   -- ^ identity element restricted to a type
-   | Patm Origin PSingleton (Maybe P_Concept)   -- ^ a singleton atom, possibly with a type. The list contains denotational equivalent values
-                                                  --   eg, when `123` is found by the parser, the list will contain both interpretations as
-                                                  --   the String "123" or as Integer 123.
-                                                  --   Since everything between the single quotes can allways be interpretated as a String,
-                                                  --   it is quaranteed that the list contains the interpretation as String, and thus cannot
-                                                  --   be empty.
+   | Patm Origin PSingleton [PSingleton] (Maybe P_Concept) -- ^ a singleton atom possibly with a type.
    | PVee Origin                            -- ^ the complete relation, of which the type is yet to be derived by the type checker.
    | Pfull Origin P_Concept P_Concept       -- ^ the complete relation, restricted to a type.
                                             --   At parse time, there may be zero, one or two elements in the list of concepts.
    | PNamedR P_NamedRel
-   deriving (Show) --For QuickCheck error messages only!
+   | PBuiltInR Origin P_Builtin
+   deriving (Show) -- For QuickCheck error messages only!
+
+data P_Builtin = PBISession deriving Show
 
 data P_NamedRel = PNamedRel { pos :: Origin, p_nrnm :: String, p_mbSign :: Maybe P_Sign }
    deriving Show
@@ -450,10 +419,11 @@ instance Traced TermPrim where
  origin e = case e of
    PI orig        -> orig
    Pid orig _     -> orig
-   Patm orig _ _  -> orig
+   Patm orig _ _ _-> orig
    PVee orig      -> orig
    Pfull orig _ _ -> orig
    PNamedR r      -> origin r
+   PBuiltInR orig _ -> orig
 
 --instance Named TermPrim where
 -- name e = case e of
@@ -583,7 +553,7 @@ data P_Population
               }
   | P_CptPopu { pos  :: Origin  -- the origin
               , p_cnme  :: String  -- the name of a concept
-              , p_popas :: [PAtomValue]  -- atoms in the initial population of that concept
+              , p_popas :: [[PAtomValue]]  -- atoms in the initial population of that concept
               }
    deriving (Show) --For QuickCheck error messages only!
 
@@ -738,11 +708,8 @@ instance Traversable P_ViewSegmtPayLoad where
  traverse _ (P_ViewText a) = pure (P_ViewText a)
 
 
--- PPurpose is a parse-time constructor. It contains the name of the object it explains.
--- It is a pre-explanation in the sense that it contains a reference to something that is not yet built by the compiler.
---                       Constructor      name          RefID  Explanation
 data PRef2Obj = PRef2ConceptDef String
-              | PRef2Declaration P_NamedRel
+              | PRef2Declaration P_NamedRel -- could contain a type, which then needs to be printed back
               | PRef2Rule String
               | PRef2IdentityDef String
               | PRef2ViewDef String
@@ -754,7 +721,7 @@ data PRef2Obj = PRef2ConceptDef String
 instance Named PRef2Obj where
   name pe = case pe of
      PRef2ConceptDef str -> str
-     PRef2Declaration (PNamedRel _ nm mSgn) -> nm++maybe "" show mSgn
+     PRef2Declaration x -> name x
      PRef2Rule str -> str
      PRef2IdentityDef str -> str
      PRef2ViewDef str -> str
@@ -762,6 +729,10 @@ instance Named PRef2Obj where
      PRef2Interface str -> str
      PRef2Context str -> str
 
+
+-- | PPurpose is a parse-time constructor. It contains the name of the object it explains.
+-- It is a pre-explanation in the sense that it contains a reference to something that is not yet built by the compiler.
+--                       Constructor      name          RefID  Explanation
 data PPurpose = PRef2 { pos :: Origin      -- the position in the Ampersand script of this purpose definition
                       , pexObj :: PRef2Obj    -- the reference to the object whose purpose is explained
                       , pexMarkup:: P_Markup  -- the piece of text, including markup and language info

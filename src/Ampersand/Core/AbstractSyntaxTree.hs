@@ -30,6 +30,7 @@ module Ampersand.Core.AbstractSyntaxTree (
  , ExplObj(..)
  , Expression(..)
  , getExpressionRelation
+ , BuiltInRel(..)
  , A_Concept(..)
  , A_Markup(..)
  , AMeaning(..)
@@ -651,6 +652,10 @@ instance Unique ExplObj where
      (ExplInterface s)   -> "an Interface named "++s
      (ExplContext s)     -> "a Context named "++s
 
+data BuiltInRel = BISession deriving (Eq, Prelude.Ord, Show, Typeable, Generic, Data)
+instance Hashable BuiltInRel where
+  hashWithSalt s BISession = s
+
 data Expression
       = EEqu (Expression,Expression)   -- ^ equivalence             =
       | EInc (Expression,Expression)   -- ^ inclusion               |-
@@ -673,6 +678,7 @@ data Expression
       | EEps A_Concept Signature       -- ^ Epsilon relation (introduced by the system to ensure we compare concepts by equality only.
       | EDcV Signature                 -- ^ Cartesian product relation
       | EMp1 PSingleton A_Concept      -- ^ constant PAtomValue, because when building the Expression, the TType of the concept isn't known yet.
+      | EBlt BuiltInRel Signature      -- ^ a built-in expression, like _SESSSION
       deriving (Eq, Prelude.Ord, Show, Typeable, Generic, Data)
 instance Unique Expression where
   showUnique = show
@@ -701,6 +707,7 @@ instance Hashable Expression where
         EEps c sgn -> (18::Int) `hashWithSalt` c `hashWithSalt` sgn
         EDcV sgn   -> (19::Int) `hashWithSalt` sgn
         EMp1 val c -> (21::Int) `hashWithSalt` show val `hashWithSalt` c
+        EBlt r sgn -> (22::Int) `hashWithSalt` r `hashWithSalt` sgn
 
 instance Unique (PairView Expression) where
   showUnique = show
@@ -773,6 +780,7 @@ instance Flippable Expression where
                EEps i sgn -> EEps i (flp sgn)
                EDcV sgn   -> EDcV (flp sgn)
                EMp1{}     -> expr
+               EBlt s sgn -> EFlp (EBlt s sgn)
 
 instance Association Expression where
  sign (EEqu (l,r)) = Sign (source l) (target r)
@@ -796,6 +804,7 @@ instance Association Expression where
  sign (EEps _ sgn) = sgn
  sign (EDcV sgn)   = sgn
  sign (EMp1 _ c)   = Sign c c
+ sign (EBlt _ sgn) = sgn
 
 showSign :: Association a => a -> String
 showSign x = let Sign s t = sign x in "["++name s++"*"++name t++"]"
@@ -954,16 +963,14 @@ unsafePAtomVal2AtomValue typ mCpt pav =
 unsafePAtomVal2AtomValue' :: TType -> Maybe A_Concept -> PAtomValue -> Either String AAtomValue
 unsafePAtomVal2AtomValue' typ mCpt pav
   = case pav of
-      PSingleton _ str mval
+      PSingleton _ str
          -> case typ of
              Alphanumeric     -> Right (AAVString (hash str) typ (pack str))
              BigAlphanumeric  -> Right (AAVString (hash str) typ (pack str))
              HugeAlphanumeric -> Right (AAVString (hash str) typ (pack str))
              Password         -> Right (AAVString (hash str) typ (pack str))
              Object           -> Right (AAVString (hash str) typ (pack str))
-             _                -> case mval of
-                                   Nothing -> message str
-                                   Just x -> unsafePAtomVal2AtomValue typ mCpt x
+             _                -> message str
       ScriptString _ str
          -> case typ of
              Alphanumeric     -> Right (AAVString (hash str) typ (pack str))
@@ -979,6 +986,7 @@ unsafePAtomVal2AtomValue' typ mCpt pav
              Integer          -> message str
              Float            -> message str
              TypeOfOne        -> Left "ONE has a population of it's own, that cannot be modified"
+             Session          -> Left "SESSION has a population of it's own, that cannot be modified"
              Object           -> Right (AAVString (hash str) typ (pack str))
       XlsxString _ str
          -> case typ of
@@ -1011,6 +1019,7 @@ unsafePAtomVal2AtomValue' typ mCpt pav
                                    Just r  -> Right (AAVFloat typ r)
                                    Nothing -> message str
              TypeOfOne        -> Left "ONE has a population of it's own, that cannot be modified"
+             Session          -> Left "SESSION has a population of it's own, that cannot be modified"
              Object           -> Right (AAVString (hash str) typ (pack str))
       ScriptInt _ i
          -> case typ of
@@ -1027,6 +1036,7 @@ unsafePAtomVal2AtomValue' typ mCpt pav
              Integer          -> Right (AAVInteger typ i)
              Float            -> Right (AAVFloat typ (fromInteger i)) -- must convert, because `34.000` is lexed as Integer
              TypeOfOne        -> Left "ONE has a population of it's own, that cannot be modified"
+             Session          -> Left "SESSION has a population of it's own, that cannot be modified"
              Object           -> message i
       ScriptFloat _ x
          -> case typ of
@@ -1043,6 +1053,7 @@ unsafePAtomVal2AtomValue' typ mCpt pav
              Integer          -> message x
              Float            -> Right (AAVFloat typ x)
              TypeOfOne        -> Left "ONE has a population of it's own, that cannot be modified"
+             Session          -> Left "SESSION has a population of it's own, that cannot be modified"
              Object           -> message x
       XlsxDouble _ d
          -> case typ of
@@ -1071,6 +1082,7 @@ unsafePAtomVal2AtomValue' typ mCpt pav
                                     (int,frac) = properFraction d
              Float            -> Right (AAVFloat typ d)
              TypeOfOne        -> Left "ONE has a population of it's own, that cannot be modified"
+             Session          -> Left "SESSION has a population of it's own, that cannot be modified"
              Object           -> relaxXLSXInput d
       ComnBool _ b
          -> if typ == Boolean

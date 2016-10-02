@@ -192,6 +192,9 @@ instance ShowADL ViewSegmentPayLoad where
 --instance ShowADL Relation where
 -- showADL rel = show rel
 
+instance ShowADL BuiltInRel where
+  showADL BISession = "_SESSION"
+
 instance ShowADL Expression where
  showADL = showExpr (" = ", " |- ", " /\\ ", " \\/ ", " - ", " / ", " \\ ", " <> ", ";", "!", "*", "*", "+", "~", ("-"++), "(", ")", "[", "*", "]")
 -- NOTE: retain space after \\, because of unexpected side effects if it is used just before an 'r' or 'n'....
@@ -222,6 +225,7 @@ instance ShowADL Expression where
           showchar (EEps i _)   = "I{-Eps-}"++lbr++name i++rbr
           showchar (EDcV sgn)   = "V"++lbr++name (source sgn)++star++name (target sgn)++rbr
           showchar (EMp1 val c) = "'"++showWithoutDoubleQuotes val++"'"++lbr++name c++rbr
+          showchar (EBlt e sgn) = showADL e++lbr++name (source sgn)++star++name (target sgn)++rbr
             
           showWithoutDoubleQuotes str = 
             case showADL str of
@@ -322,9 +326,9 @@ instance ShowADL P_Population where
     where indent = "   "
           showContent = case pop of
                           P_RelPopu{} -> map showADL (p_popps pop)
-                          P_CptPopu{} -> map showADL  (p_popas pop)
+                          P_CptPopu{} -> map (showADL.head) (p_popas pop)
 instance ShowADL PAtomPair where
- showADL p = "("++showADL (ppLeft p)++","++ showADL (ppRight p)++")"
+ showADL p = "("++showADL (head$ppLeft p)++","++ showADL (head$ppRight p)++")"
 instance ShowADL AAtomPair where
  showADL p = "("++showADL (apLeft p)++","++ showADL (apRight p)++")"
   
@@ -353,7 +357,7 @@ instance ShowADL Population where
 
 instance ShowADL PAtomValue where
  showADL at = case at of
-              PSingleton _ s _ -> show s
+              PSingleton _ s   -> show s
               ScriptString _ s -> show s
               XlsxString _ s   -> show s
               ScriptInt _ s    -> show s
@@ -376,12 +380,12 @@ instance ShowADL AAtomValue where
 instance ShowADL TermPrim where
  showADL (PI _)                   = "I"
  showADL (Pid _ c)                = "I["++showADL c++"]"
- showADL (Patm _ val mSign)     = showSingleton
+ showADL (Patm _ val _ mSign)     = showSingleton
   where
    showSingleton =
      "'"++
      (case val of
-       PSingleton   _ x _ -> x 
+       PSingleton     _ x -> x 
        ScriptString   _ x -> x
        XlsxString     _ x -> concatMap escapeSingleQuote x
                                where escapeSingleQuote c=
@@ -400,10 +404,13 @@ instance ShowADL TermPrim where
        Nothing -> ""
        Just c  -> "["++show c++"]"
      )
-     
  showADL (PVee _)                 = "V"
  showADL (Pfull _ s t)            = "V["++show s++"*"++show t++"]"
  showADL (PNamedR rel)            = showADL rel
+ showADL (PBuiltInR _ s)          = showADL s
+instance ShowADL P_Builtin where
+ showADL PBISession = "_SESSION"
+
 instance ShowADL P_NamedRel where
  showADL (PNamedRel _ rel mSgn)                    = rel++maybe "" showsign mSgn
   where     showsign (P_Sign src trg)                         = "["++showADL src++"*"++showADL trg++"]"

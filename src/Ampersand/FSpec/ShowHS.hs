@@ -638,6 +638,10 @@ instance ShowHS Expression where
  showHS opts _      (EEps i sgn) = "EEps ("++showHS opts "" i++") ("++showHS opts "" sgn++")"
  showHS opts _      (EDcV sgn  ) = "EDcV ("++showHS opts "" sgn++")"
  showHS _    _      (EMp1 a c  ) = "EMp1 " ++show a++" "++showHSName c
+ showHS opts _      (EBlt x sgn) = "EBlt ("++showHS opts "" x++") ("++showHS opts "" sgn++")"
+
+instance ShowHS BuiltInRel where
+  showHS _ _ BISession = "BISession"
 
 instance ShowHS Signature where
  showHS _ _ sgn = "Sign "++showHSName (source sgn)++" "++showHSName (target sgn)

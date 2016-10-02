@@ -61,7 +61,7 @@ toPops opts file x = map popForColumn (colNrs x)
                       , p_cnme = sourceConceptName 
                       , p_popas = concat [ case value(row,i) of
                                              Nothing -> []
-                                             Just cv -> cellToAtomValue mSourceConceptDelimiter cv popOrigin
+                                             Just cv -> [cellToAtomValue mSourceConceptDelimiter cv popOrigin]
                                          | row <- popRowNrs x
                                          ] 
                       }
@@ -120,7 +120,7 @@ toPops opts file x = map popForColumn (colNrs x)
                           ) of
                        (Just s,Just t) -> Just $ 
                                             (if isFlipped then map flp else id)
-                                                [mkPair origTrg s' t'
+                                                [mkPair origTrg [s'] [t']
                                                 | s' <- cellToAtomValue mSourceConceptDelimiter s origSrc
                                                 , t' <- cellToAtomValue mTargetConceptDelimiter t origTrg
                                                 ]

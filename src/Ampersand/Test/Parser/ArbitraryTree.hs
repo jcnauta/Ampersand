@@ -54,7 +54,7 @@ objTermPrim i =
           --TODO: The view is never tested like this
           genView = return Nothing
           genPrim :: Gen TermPrim
-          genPrim = PNamedR <$> relationRef
+          genPrim = PNamedR <$> arbitrary
 
 --TODO: refactor obj/ifc generators
 genObj :: Arbitrary a => Int -> Gen (P_ObjDef a)
@@ -117,7 +117,7 @@ instance Arbitrary MetaObj where
     arbitrary = return ContextMeta
 
 instance Arbitrary P_RoleRelation where
-    arbitrary = P_RR <$> arbitrary <*> listOf1 arbitrary <*> listOf1 relationRef
+    arbitrary = P_RR <$> arbitrary <*> listOf1 arbitrary <*> listOf1 arbitrary
 
 instance Arbitrary P_RoleRule where
     arbitrary = Maintain <$> arbitrary <*> listOf1 arbitrary <*> listOf1 safeStr
@@ -199,15 +199,12 @@ instance Arbitrary TermPrim where
         oneof [
            PI <$> arbitrary,
            Pid <$> arbitrary <*> genConceptOne,
-           Patm <$> arbitrary <*> arbitrary <*> maybeConceptOne,
+           Patm <$> arbitrary <*> arbitrary <*> arbitrary <*> maybeConceptOne,
            PVee <$> arbitrary,
            Pfull <$> arbitrary <*> genConceptOne <*> genConceptOne,
-           PNamedR <$> relationRef
+           PNamedR <$> arbitrary
        ]
       where maybeConceptOne = oneof [return Nothing, Just <$> genConceptOne]
-
-relationRef :: Gen P_NamedRel
-relationRef = PNamedRel <$> arbitrary <*> lowerId <*> arbitrary
 
 instance Arbitrary a => Arbitrary (PairView (Term a)) where
     arbitrary = PairView <$> listOf1 arbitrary
@@ -307,7 +304,7 @@ instance Arbitrary PRef2Obj where
     arbitrary =
         oneof [
             PRef2ConceptDef <$> safeStr,
-            PRef2Declaration <$> relationRef,
+            PRef2Declaration <$> arbitrary,
             PRef2Rule <$> upperId,
             PRef2IdentityDef <$> upperId,
             PRef2ViewDef <$> upperId,

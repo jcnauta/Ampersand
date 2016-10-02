@@ -38,6 +38,7 @@ subst (decl,expr) = subs
        subs e@EEps{}     = e
        subs e@EDcV{}     = e
        subs e@EMp1{}     = e
+       subs e@EBlt{}     = e
 
 
 primitives :: Expression -> [Expression]
@@ -64,6 +65,7 @@ primitives expr =
     EEps{}       -> []  -- Since EEps is inserted for typing reasons only, we do not consider it a primitive..
     EDcV{}       -> [expr]
     EMp1{}       -> [expr]
+    EBlt{}       -> [expr]
 
 -- | The rule of De Morgan requires care with respect to the complement.
 --   The following function provides a function to manipulate with De Morgan correctly.

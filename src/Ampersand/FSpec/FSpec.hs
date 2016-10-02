@@ -373,5 +373,6 @@ showSQL tt =
      Integer          -> "BIGINT"
      Float            -> "FLOAT"
      Object           -> "VARCHAR(255)"
+     Session          -> "VARCHAR(255)"
      TypeOfOne        -> fatal 461 "ONE is not represented in SQL" 
 
