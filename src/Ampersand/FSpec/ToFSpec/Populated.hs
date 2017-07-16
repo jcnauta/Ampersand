@@ -38,7 +38,7 @@ largerConcepts gs cpt
 -- | This function returns a list of the same concepts, but in an ordering such that if for any two elements a and b in the 
 --   list, if a is more specific than b, a will be to the left of b in the resulting list.
 sortSpecific2Generic :: [A_Gen] -> [A_Concept] -> [A_Concept]
-sortSpecific2Generic gens cps = go [] cps
+sortSpecific2Generic gens = go []
   where go xs [] = xs
         go xs (y:ys)
           | null (smallerConcepts gens y `isc` ys) = go (xs++[y]) ys
@@ -72,10 +72,10 @@ pairsOf ci ps dcl
 fullContents :: ContextInfo -> [Population] -> Expression -> [AAtomPair]
 fullContents ci ps e = [ mkAtomPair a b | let pairMap=contents e, (a,bs)<-Map.toList pairMap, b<-Set.toList bs ]
   where
-   unions t1 t2 = unionWith Set.union t1 t2
-   inters t1 t2 = mergeWithKey (\_ l r -> Just (Set.intersection l r)) c c t1 t2
+   unions = unionWith Set.union
+   inters = mergeWithKey (\_ l r -> Just (Set.intersection l r)) c c
                   where c=const empty
-   differ t1 t2 = differenceWith (\l r->Just (Set.difference l r)) t1 t2
+   differ = differenceWith (\l r->Just (Set.difference l r))
    contents :: Expression -> Map AAtomValue (Set.Set AAtomValue)
    contents expr
     = let aVals = atomValuesOf ci ps 
@@ -98,15 +98,15 @@ fullContents ci ps e = [ mkAtomPair a b | let pairMap=contents e, (a,bs)<-Map.to
                                 , null (lkp x (contents (EFlp l)) >- lkp y (contents (EFlp r)))
                                 ]
          EDia (l,r) -> fromListWith Set.union
-                       [(x,Set.singleton y) | x<-aVals (source l), y<-aVals (source r)
-                                , null (lkp y (contents r) >- lkp x (contents l))
-                                , null (lkp y (contents l) >- lkp x (contents r))
+                       [(x,Set.singleton y) | x <- aVals (source l), y <- aVals (target r)
+                                , null (lkp y (contents (EFlp r)) >- lkp x (contents l))
+                                , null (lkp x (contents l) >- lkp y (contents (EFlp r)))
                                 ]
          ERad (l,r) -> fromListWith Set.union
                        [(x,Set.singleton y) | x<-aVals (source l), y<-aVals (target r)
                                 , null (aVals (target l) >- (lkp x (contents l) `uni` lkp y (contents (EFlp r))))
                                 ]
-         EPrd (l,r) -> fromList $
+         EPrd (l,r) -> fromList
                        [ (a,Set.fromList cod) | a <- aVals (source l), let cod=aVals (target r), not (null cod) ]
          ECps (l,r) -> fromListWith Set.union
                        [(x,Set.singleton y) | (x,xv)<-Map.toList (contents l), (y,yv)<-Map.toList flipr
@@ -125,9 +125,10 @@ fullContents ci ps e = [ mkAtomPair a b | let pairMap=contents e, (a,bs)<-Map.to
          EDcI c     -> fromList [(a, Set.singleton a) | a <- aVals c]
          EEps i _   -> fromList [(a, Set.singleton a) | a <- aVals i]
          EDcV sgn   -> fromList [(s, Set.fromList cod) | s <- aVals (source sgn), let cod=aVals (target sgn), not (null cod) ]
-         EMp1 val c -> if name c == "SESSION" -- prevent populating SESSION
-                                  then Map.empty
-                                  else Map.singleton av (Set.singleton av)
+         EMp1 val c -> if name c == "SESSION" -- prevent populating SESSION with "_SESSION"
+                          && val == PSingleton undefined "_SESSION" undefined
+                        then Map.empty
+                        else Map.singleton av (Set.singleton av)
                          where 
                            av = safePSingleton2AAtomVal ci c val
 

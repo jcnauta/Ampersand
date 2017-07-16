@@ -1,5 +1,5 @@
 // when using minified angular modules, use module('myApp', []).controller('MyController', ['myService', function (myService) { ...
-var AmpersandApp = angular.module('AmpersandApp', ['ngResource', 'ngRoute', 'ngSanitize', 'restangular', 'ui.bootstrap', 'uiSwitch', 'cgBusy', 'siTable', 'ng-code-mirror', 'ngStorage', 'angularFileUpload', 'agGrid', 'ui.bootstrap.datetimepicker', 'hc.marked']);
+var AmpersandApp = angular.module('AmpersandApp', ['ngResource', 'ngRoute', 'ngSanitize', 'restangular', 'ui.bootstrap', 'uiSwitch', 'cgBusy', 'siTable', 'ng-code-mirror', 'ngStorage', 'angularFileUpload', 'ui.bootstrap.datetimepicker', 'hc.marked']);
 
 AmpersandApp.config(function($routeProvider) {
 	$routeProvider
@@ -30,7 +30,7 @@ AmpersandApp.config(function(RestangularProvider) {
     
 });
 
-AmpersandApp.run(function(Restangular, $rootScope, $localStorage, $sessionStorage, $location, $route){
+AmpersandApp.run(function(Restangular, $rootScope, $localStorage, $sessionStorage, $location, $route, $location){
 	
 	$sessionStorage.session = {'id' : initSessionId}; // initSessionId provided by index.php on startup application
 		
@@ -47,6 +47,8 @@ AmpersandApp.run(function(Restangular, $rootScope, $localStorage, $sessionStorag
 	});
 	
 	Restangular.addResponseInterceptor(function(data, operation, what, url, response, deferred){
+		if(operation != 'get' && operation != 'getList' && data.sessionRefreshAdvice) $rootScope.refreshNavBar();
+		if(data.navTo != null) $location.url(data.navTo);
 		
 		return data;
 	});

@@ -1,9 +1,9 @@
 module Ampersand.ADL1.Rule 
   (consequent, antecedent, rulefromProp, hasantecedent) where
 
+import Ampersand.Core.ParseTree(Prop(..),Traced(..))
 import Ampersand.Core.AbstractSyntaxTree
 import Ampersand.Basics
-import Ampersand.Misc
 
 hasantecedent :: Rule -> Bool
 hasantecedent r
@@ -29,7 +29,7 @@ consequent r
 -- The table of all relations is provided, in order to generate shorter names if possible.
 rulefromProp :: Prop -> Declaration -> Maybe Rule
 rulefromProp prp d@Sgn{} =
-  Just $ 
+  Just
      Ru { rrnm  = show prp++" "++showDcl'
         , rrexp = rExpr
         , rrfps = origin d
@@ -43,15 +43,15 @@ rulefromProp prp d@Sgn{} =
         , isSignal = fatal 63 "It is determined later (when all MAINTAIN statements are available), what this value is." 
         }
        where
-        showDcl' = showDcl False d
+        showDcl' = showDcl True d
         r:: Expression
         r = EDcD d
         rExpr = if not (isEndo r) && prp `elem` [Sym, Asy, Trn, Rfx, Irf]
                 then fatal 70 ("Illegal property of an endo relation "++show (name d)) else
                 case prp of
-                     Uni-> flp r .:. r .|-. EDcI (target r)
+                     Uni-> r .:. ECpl (EDcI (target r)) .:. flp r .|-. ECpl (EDcI (source r))
                      Tot-> EDcI (source r)  .|-. r .:. flp r
-                     Inj-> r .:. flp r .|-. EDcI (source r)
+                     Inj-> flp r .:. ECpl (EDcI (source r)) .:. r .|-. ECpl (EDcI (target r))
                      Sur-> EDcI (target r)  .|-. flp r .:. r
                      Sym-> r .==. flp r
                      Asy-> flp r ./\. r .|-. EDcI (source r)
@@ -61,7 +61,7 @@ rulefromProp prp d@Sgn{} =
                      Prop -> fatal 78 "Prop should have been converted by the parser"
         explain prop = [ explang lang | lang <-[English,Dutch]]
           where 
-            explang lang = A_Markup lang (string2Blocks ReST $ f lang)
+            explang lang = Markup lang (string2Blocks ReST $ f lang)
             f English = showDcl'++" is "++
                   case prop of
                     Sym-> "symmetric"
@@ -85,13 +85,13 @@ rulefromProp prp d@Sgn{} =
                     Sur-> "surjectief"
                     Inj-> "injectief"
                     Tot-> "totaal"
-                    Prop -> fatal 103 "Prop should have been converted by pattern the parser"
+                    Prop -> fatal 103 "Prop should have been converted by the parser"
          
         violMsg prop = [ msg lang | lang <-[English,Dutch]]
           where
             s= name (source d)
             t= name (target d)
-            msg lang = A_Markup lang (string2Blocks ReST $ f lang)
+            msg lang = Markup lang (string2Blocks ReST $ f lang)
             f English =
                   case prop of
                     Sym-> showDcl'++" is "++"symmetric"

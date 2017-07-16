@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DuplicateRecordFields,OverloadedLabels #-}
 module Ampersand.Input.Xslx.XLSX 
   (parseXlsxFile)
 where
@@ -33,8 +33,8 @@ parseXlsxFile opts useAllStaticFiles file =
   xlsx2pContext :: Xlsx -> Guarded [P_Population]
   xlsx2pContext xlsx 
     = Checked $ concatMap (toPops opts file) $
-         Prelude.concatMap theSheetCellsForTable (xlsx ^. xlSheets . to M.toList)
-      
+         Prelude.concatMap theSheetCellsForTable (xlsx ^. xlSheets)
+
 data SheetCellsForTable 
        = Mapping{ theSheetName :: String
                 , theCellMap   :: CellMap
@@ -57,7 +57,7 @@ toPops opts file x = map popForColumn (colNrs x)
     popForColumn :: Int -> P_Population
     popForColumn i = --trace (show x ++"(Now column: "++show i++")") $
       if i  == sourceCol  
-      then  P_CptPopu { p_orig = popOrigin
+      then  P_CptPopu { pos = popOrigin
                       , p_cnme = sourceConceptName 
                       , p_popas = concat [ case value(row,i) of
                                              Nothing -> []
@@ -65,11 +65,10 @@ toPops opts file x = map popForColumn (colNrs x)
                                          | row <- popRowNrs x
                                          ] 
                       }
-      else  P_RelPopu { p_orig = popOrigin
+      else  P_RelPopu { pos = popOrigin
                       , p_src = src
                       , p_tgt = trg
-                      , p_nmdr 
-                         = PNamedRel popOrigin relName Nothing
+                      , p_nmdr = PNamedRel popOrigin relName Nothing -- The P-to-A converter must assign the type.
                       , p_popps = thePairs
                       }
      where                             

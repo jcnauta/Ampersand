@@ -122,6 +122,7 @@ class Database {
 		// Connect to MYSQL database
 		$this->db_link = mysqli_init();
 		$this->db_link->real_connect($this->db_host, $this->db_user, $this->db_pass, $this->db_name, null, null, MYSQLI_CLIENT_FOUND_ROWS);
+        $this->db_link->set_charset("utf8");
 		
 		// Set sql_mode to ANSI
 		$this->db_link->query("SET SESSION sql_mode = 'ANSI,TRADITIONAL'");
@@ -218,6 +219,8 @@ class Database {
 		$this->logger->info("Execute database structure queries");
 		foreach($queries['allDBstructQueries'] as $query){
 			$this->Exe($query);
+                
+            set_time_limit ((int) ini_get('max_execution_time')); // reset time limit counter to handle large amounts of create table / index queries.
 		}
 		
         if($installDefaultPop){
@@ -226,6 +229,8 @@ class Database {
             
             foreach($queries['allDefPopQueries'] as $query){
                 $this->Exe($query);
+                
+                set_time_limit ((int) ini_get('max_execution_time')); // reset time limit counter to handle large amounts of default population queries.
             }
         }else{
             $this->logger->info("Skip default population");
@@ -455,12 +460,12 @@ class Database {
 		$colNames = array();
 		$conceptTableInfo = $atom->concept->getConceptTableInfo();
 		$conceptTable = $conceptTableInfo->name;
-		$conceptCol = reset($conceptTableInfo->getCols());
+		$conceptCol = current($conceptTableInfo->getCols());
 		
 		$colNames[] = $conceptCol->name;
 		foreach($atom->concept->getSpecializations() as $specConcept){
 			$conceptTableInfo = $specConcept->getConceptTableInfo();
-			$colNames[] = reset($conceptTableInfo->getColNames);
+			$colNames[] = current($conceptTableInfo->getColNames);
 		}
 		
 		// Create query string: "<col1>" = '<atom>', "<col2>" = '<atom>', etc
@@ -737,7 +742,7 @@ class Database {
 	 * @param Relation $relation
 	 * @return void
 	 */
-	private function addAffectedRelations($relation){
+	public function addAffectedRelations($relation){
 	
 		if($this->trackAffectedConjuncts && !in_array($relation, $this->affectedRelations)){
 			$this->logger->debug("Mark relation '{$relation->__toString()}' as affected relation");

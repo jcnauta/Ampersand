@@ -63,9 +63,19 @@ class Session {
     private $sessionAccount;
     
     /**
+     * @var boolean $sessionVarAffected flag that is set when session variable is changed
+     * a session variable is a relation with SESSION as src or tgt)
+     * this flag is returned to frontend to trigger a navigation bar refresh (e.g. after a user login)
+     */
+    private $sessionVarAffected;
+    
+    /**
      * @var Session $_instance needed for singleton() pattern of Session class
      */
     private static $_instance = null;
+    
+    public $navToOnCommit = null;
+    public $navToOnRollback = null;
     
     /**
      * Constructor of Session class
@@ -206,11 +216,7 @@ class Session {
             $sessionRoles = array();
             if(Config::get('loginEnabled')){
                 $this->logger->debug("Getting interface 'SessionRoles' for {$this->sessionAtom->__toString()}");
-                $sessionRoleLabels = array_map(
-                    function($o){
-                        return $o->id;
-                    }, $this->sessionAtom->ifc('SessionRoles')->getTgtAtoms()
-                );
+                $sessionRoleLabels = $this->getSessionRoleLabels();
                 foreach(Role::getAllRoles() as $role){
                     if(in_array($role->label, $sessionRoleLabels)) $sessionRoles[] = $role;
                 }
@@ -221,6 +227,34 @@ class Session {
             $this->sessionRoles = $sessionRoles;
         }
         return $this->sessionRoles;
+    }
+    
+    /**
+     * Returns the labels of the session roles
+     * @return string[]
+     */
+    public function getSessionRoleLabels(){
+        return array_map(function($o){
+                return $o->id;
+            }, $this->sessionAtom->ifc('SessionRoles')->getTgtAtoms());
+    }
+    
+    /**
+     * Returns true if the session roles contain any of the provided roles or provided roles are NULL. Returns false otherwise
+     * @param array|null $roleLabels that have access rigths
+     * @return boolean
+     * @throws Exception 500 when $roles param is not an array or NULL
+     */
+    public function hasAccess($roleLabels = []){
+        if(is_null($roleLabels)) return true;
+        if(Config::get('loginEnabled', 'global') === false) return true;
+        if(!is_array($roleLabels)) throw new Exception("Array (or null) expected to check access rights. Non-array provided.", 500);
+        
+        foreach($this->getSessionRoleLabels() as $sRole){
+            if(in_array($sRole, $roleLabels)) return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -327,6 +361,50 @@ class Session {
      */
     public function isAccessibleIfc($interfaceId){
         return in_array($interfaceId, array_map(function($o) { return $o->id; }, $this->accessibleInterfaces));
+    }
+    
+    /**
+     * Flag session variable as affected
+     * @param boolean $bool
+     * @return void
+     */
+    public function setSessionVarAffected($bool = true){
+        $this->sessionVarAffected = $bool;
+    }
+    
+    /**
+     * Returns if flag for session var affected is set
+     * @return boolean
+     */
+    public function getSessionVarAffected(){
+        return $this->sessionVarAffected;
+    }
+    
+    /**
+     * Returns if session refresh is adviced in frontend
+     * True when
+     * - session variable is affected (otherwise nothing to update)
+     * - AND transaction request is 'promise' (otherwise rollback)
+     * - AND invariant rules hold (otherwise rollback)
+     * False otherwise
+     * @return boolean
+     */
+    public function getSessionRefreshAdvice(){
+        return $this->getSessionVarAffected() 
+                && ($this->database->getRequestType() == 'promise')
+                && $this->database->getInvariantRulesHold();
+    }
+    
+    public function getNavToResponse(){
+    	return $this->database->getInvariantRulesHold() ? $this->navToOnCommit : $this->navToOnRollback;
+    }
+    
+    public function setNavToOnCommit($navTo){
+    	$this->navToOnCommit = $navTo;
+    }
+    
+    public function setNavToOnRollback($navTo){
+    	$this->navToOnRollback = $navTo;
     }
 }
 ?>

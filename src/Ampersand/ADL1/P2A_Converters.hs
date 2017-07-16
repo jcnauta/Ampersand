@@ -1,16 +1,17 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE LambdaCase, ImplicitParams #-}
--- unfortunately not in GHC yet, try to add this line when at GHC 8.0: {-# ApplicativeDo #-}
+{-# LANGUAGE ApplicativeDo, DuplicateRecordFields,OverloadedLabels #-}
 module Ampersand.ADL1.P2A_Converters (pCtx2aCtx,pCpt2aCpt)
 where
 import Ampersand.ADL1.Disambiguate
 import Ampersand.Core.ParseTree -- (P_Context(..), A_Context(..))
 import Ampersand.Input.ADL1.CtxError
+import Ampersand.Core.A2P_Converters
 import Ampersand.ADL1.Lattices -- used for type-checking
 import Ampersand.Core.AbstractSyntaxTree
 import Ampersand.Classes.ViewPoint
 import Ampersand.Classes.ConceptStructure
-import Ampersand.FSpec.ToFSpec.Populated
+import Ampersand.FSpec.ToFSpec.Populated(sortSpecific2Generic)
 import Ampersand.Basics
 import Ampersand.Misc
 import Control.Monad (join,unless)
@@ -76,20 +77,6 @@ instance Ord SignOrd where
 instance Eq SignOrd where
   (==) (SignOrd (Sign a b)) (SignOrd (Sign c d)) = (name a,name b) == (name c,name d)
 
--- pCtx2aCtx has three tasks:
--- 1) Disambiguate the structures.
---    Disambiguation means replacing every "TermPrim" (the parsed expression) with the correct Expression (available through DisambPrim)
---    This is done by using the function "disambiguate" on the outer-most structure.
---    In order to do this, its data type must be polymorphic, as in "P_ViewSegmt a".
---    After parsing, the type has TermPrim for the type variable. In our example: "P_ViewSegmt TermPrim". Note that "type P_ViewSegment = P_ViewSegmt TermPrim".
---    After disambiguation, the type variable is (TermPrim, DisambPrim), as in "P_ViewSegmt (TermPrim, DisambPrim)"
--- 2) Typecheck the structures.
---    This changes the data-structure entirely, changing the P_ into the A_
---    A "Guarded" will be added on the outside, in order to catch both type errors and disambiguation errors.
---    Using the Applicative operations <$> and <*> causes these errors to be in parallel
--- 3) Check everything else on the A_-structure: interface references should not be cyclic, rules e.a. must have unique names, etc.
--- Part 3 is done below, the other two are done in pCtx2aCtx'
-
 
 -- NOTE: Static checks like checkPurposes should ideally occur on the P-structure before type-checking, as it makes little
 -- sense to do type checking when there are static errors. However, in Ampersand all collect functions (e.g. in ViewPoint)
@@ -152,13 +139,24 @@ checkOtherAtomsInSessionConcept :: A_Context -> Guarded ()
 checkOtherAtomsInSessionConcept ctx = case [mkOtherAtomInSessionError atom
                                            | pop@ACptPopu{popcpt =cpt} <- ctxpopus ctx
                                            , name cpt == "SESSION"
-                                           , atom <- filter (not.isPermittedSessionValue) (popas pop)
-                                           ] of
+                                           , atom <- popas pop
+                                           -- SJC: I think we should not allow _SESSION in a POPULATION statement, as there is no current session at that time (_SESSION should only be allowed as Atom in expressions)
+                                           , not (_isPermittedSessionValue atom)
+                                           ] ++
+                                           [ mkOtherTupleInSessionError d pr
+                                           | ARelPopu{popsrc = src,poptgt = tgt,popdcl = d,popps = ps} <- ctxpopus ctx
+                                           , name src == "SESSION" || name tgt == "SESSION"
+                                           , pr <- ps
+                                           , (name src == "SESSION" && not (_isPermittedSessionValue (apLeft pr)))
+                                             ||
+                                             (name tgt == "SESSION" && not (_isPermittedSessionValue (apRight pr)))
+                                           ]
+                                           of
                                         [] -> return ()
                                         errs -> Errors errs
-        where isPermittedSessionValue :: AAtomValue -> Bool
-              isPermittedSessionValue v@AAVString{} = aavstr v == "_SESSION"
-              isPermittedSessionValue _                 = False
+        where _isPermittedSessionValue :: AAtomValue -> Bool
+              _isPermittedSessionValue v@AAVString{} = aavstr v == "_SESSION"
+              _isPermittedSessionValue _                 = False
 
 pSign2aSign :: P_Sign -> Signature
 pSign2aSign (P_Sign src tgt) = Sign (pCpt2aCpt src) (pCpt2aCpt tgt)
@@ -197,11 +195,23 @@ findDeclsTyped declMap x tp = Map.findWithDefault [] (SignOrd tp) (Map.map (:[])
 onlyUserConcepts :: [[Type]] -> [[A_Concept]]
 onlyUserConcepts = fmap userList
 
+-- | pCtx2aCtx has three tasks:
+-- 1. Disambiguate the structures.
+--    Disambiguation means replacing every "TermPrim" (the parsed expression) with the correct Expression (available through DisambPrim)
+--    This is done by using the function "disambiguate" on the outer-most structure.
+--    In order to do this, its data type must be polymorphic, as in "P_ViewSegmt a".
+--    After parsing, the type has TermPrim for the type variable. In our example: "P_ViewSegmt TermPrim". Note that "type P_ViewSegment = P_ViewSegmt TermPrim".
+--    After disambiguation, the type variable is (TermPrim, DisambPrim), as in "P_ViewSegmt (TermPrim, DisambPrim)"
+-- 2. Typecheck the structures.
+--    This changes the data-structure entirely, changing the P_ into the A_
+--    A "Guarded" will be added on the outside, in order to catch both type errors and disambiguation errors.
+--    Using the Applicative operations <$> and <*> causes these errors to be in parallel
+-- 3. Check everything else on the A_-structure: interface references should not be cyclic, rules e.a. must have unique names, etc.
 pCtx2aCtx :: Options -> P_Context -> Guarded A_Context
 pCtx2aCtx opts
  PCtx { ctx_nm     = n1
       , ctx_pos    = n2
-      , ctx_lang   = lang
+      , ctx_lang   = ctxmLang
       , ctx_markup = pandocf
       , ctx_thms   = p_themes 
       , ctx_pats   = p_patterns
@@ -276,7 +286,7 @@ pCtx2aCtx opts
   where
     concGroups = (\x -> trace (show x) x) $
                  getGroups genLatticeIncomplete :: [[Type]]
-    deflangCtxt = lang -- take the default language from the top-level context
+    deflangCtxt = fromMaybe English $ ctxmLang `orElse` language opts
     deffrmtCtxt = fromMaybe ReST pandocf
     
     allGens = p_gens ++ concatMap pt_gns p_patterns
@@ -311,7 +321,7 @@ pCtx2aCtx opts
               reprTrios :: [(A_Concept,TType,Origin)]
               reprTrios = nub $ concatMap toReprs reprs
                 where toReprs :: Representation -> [(A_Concept,TType,Origin)]
-                      toReprs r = [ (makeConcept str,reprdom r,reprpos r) | str <- reprcpts r]
+                      toReprs r = [ (makeConcept str,reprdom r,origin r) | str <- reprcpts r]
               conceptsOfGroups :: [A_Concept]
               conceptsOfGroups = nub (concat groups)
               conceptsOfReprs :: [A_Concept]
@@ -375,7 +385,7 @@ pCtx2aCtx opts
 {-
     findType :: A_Concept -> Guarded (Maybe (A_Concept, TType))
     findType h
-     = case (map toList)$ toList$ findSubsets genLattice (lJoin (aConcToType h) RepresentSeparator) of
+     = case (map toList)$ toList$ findUpperbounds genLattice (lJoin (aConcToType h) RepresentSeparator) of
            [] -> pure$ Nothing -- use default
            o@[[r]] -> representAs <$> getAsType (fatal 293 (show o++", A custom type found for "++show h++" turned out to be above the RepresentSeparator, which is wrong")) r
            lst' -> multipleRepresentTypes OriginUnknown h (concatMap (take 1 . lefts . map typeOrConcept) lst')
@@ -394,8 +404,8 @@ pCtx2aCtx opts
                ]
       where
         gen_generics :: P_Gen -> [P_Concept]
-        gen_generics (P_Cy {gen_rhs=x}) = x
-        gen_generics (PGen {gen_gen=x,gen_spc=y}) = [x,y]
+        gen_generics P_Cy{gen_rhs = x} = x
+        gen_generics PGen{gen_gen = x, gen_spc = y} = [x,y]
 
     completeRules = genRules ++
                [ ( Set.singleton (userConcept cpt), Set.fromList [BuiltIn (reprdom x), userConcept cpt] )
@@ -447,7 +457,7 @@ pCtx2aCtx opts
                      , decprM  = prM
                      , decprR  = prR
                      , decMean = pMean2aMean defLanguage defFormat (dec_Mean pd)
-                     , decfpos = dec_fpos pd
+                     , decfpos = origin pd
                      , decusr  = True
                      , decpat  = patNm
                      , decplug = dec_plug pd
@@ -507,8 +517,8 @@ pCtx2aCtx opts
                         _ -> namedRel2Decl declMap nmdr
                       
                aps' <- traverse (pAtomPair2aAtomPair contextInfo dcl) aps
-               src' <- maybeOverGuarded ((getAsConcept (origin pop) =<<) . isMoreGeneric pop dcl Src . userConcept) src
-               tgt' <- maybeOverGuarded ((getAsConcept (origin pop) =<<) . isMoreGeneric pop dcl Tgt . userConcept) tgt
+               src' <- maybeOverGuarded ((getAsConcept (origin pop) =<<) . isMoreGeneric (origin pop) dcl Src . userConcept) src
+               tgt' <- maybeOverGuarded ((getAsConcept (origin pop) =<<) . isMoreGeneric (origin pop) dcl Tgt . userConcept) tgt
                return ARelPopu { popdcl = dcl
                                , popps  = aps'
                                , popsrc = fromMaybe (source dcl) src'
@@ -521,7 +531,7 @@ pCtx2aCtx opts
                           , popas  = vals
                           }
               ) <$> traverse (pAtomValue2aAtomValue contextInfo cpt) (p_popas pop)
-    -- isMoreGeneric :: a2 -> t -> SrcOrTgt -> Type -> Guarded Type
+    isMoreGeneric :: Origin -> Declaration -> SrcOrTgt -> Type -> Guarded Type
     isMoreGeneric o dcl sourceOrTarget givenType
      = if givenType `elem` findExact genLattice (Atom (getConcept sourceOrTarget dcl) `Meet` Atom givenType)
        then pure givenType
@@ -554,7 +564,7 @@ pCtx2aCtx opts
 
     typecheckViewDef :: DeclMap -> P_ViewD (TermPrim, DisambPrim) -> Guarded ViewDef
     typecheckViewDef _
-       o@P_Vd { vd_pos = orig
+       o@P_Vd { pos = orig
               , vd_lbl  = lbl   -- String
               , vd_cpt  = cpt   -- Concept
               , vd_isDefault = isDefault
@@ -574,7 +584,7 @@ pCtx2aCtx opts
        typeCheckViewSegment :: (Integer, P_ViewSegment (TermPrim, DisambPrim)) -> Guarded ViewSegment
        typeCheckViewSegment (seqNr, seg)
         = do payload <- typecheckPayload (vsm_load seg)
-             return ViewSegment { vsmpos   = vsm_org seg
+             return ViewSegment { vsmpos   = origin seg
                                 , vsmlabel = vsm_labl seg
                                 , vsmSeqNr = seqNr
                                 , vsmLoad  = payload
@@ -586,7 +596,7 @@ pCtx2aCtx opts
               P_ViewExp term -> 
                  do (viewExpr,(srcBounded,_)) <- typecheckTerm term
                     case userList$toList$ findExact genLattice (flType$ lMeet c (source viewExpr)) of
-                       [] -> mustBeOrdered o o (Src, source viewExpr, viewExpr)
+                       [] -> mustBeOrdered (origin o) o (Src, source viewExpr, viewExpr)
                        r  -> if srcBounded || c `elem` r then pure (ViewExp (addEpsilonLeft (head r) viewExpr))
                              else mustBeBound (origin seg) [(Tgt,viewExpr)]
               P_ViewText str -> pure$ ViewText str
@@ -600,7 +610,7 @@ pCtx2aCtx opts
     typecheckObjDef :: DeclMap -> P_ObjDef (TermPrim, DisambPrim) -> Guarded (ObjectDef, Bool)
     typecheckObjDef declMap
        o@P_Obj { obj_nm = nm
-               , obj_pos = orig
+               , pos = orig
                , obj_ctx = ctx
                , obj_crud = mCrud
                , obj_mView = mView
@@ -701,7 +711,7 @@ pCtx2aCtx opts
      where matchWith _ (ojd,exprBound)
             = if b || exprBound then
                 case userList$toList$ findExact genLattice (flType $ lMeet (target objExpr) (source . objctx $ ojd)) of
-                    [] -> mustBeOrderedLst x [(source (objctx ojd),Src, ojd)]
+                    [] -> mustBeOrderedLst x [(source (objctx ojd),Src, aObjectDef2pObjectDef ojd)]
                     (r:_) -> pure (ojd{objctx=addEpsilonLeft r (objctx ojd)})
               else mustBeBound (origin ojd) [(Src,objctx ojd),(Tgt,objExpr)]
     typeCheckInterfaceRef :: P_ObjDef a -> String -> Expression -> Expression -> Guarded Expression
@@ -811,7 +821,7 @@ pCtx2aCtx opts
           [] -> mustBeOrdered o (p1,e1) (p2,e2)
           r  -> pure$ head r
       getAndCheckType flf (p1,b1,e1) (p2,b2,e2)
-       = case fmap (userList . toList)$toList$ findSubsets genLattice (flType$ flf (getAConcept p1 e1) (getAConcept p2 e2)) of -- note: we could have used GetOneGuarded, but this yields more specific error messages
+       = case fmap (userList . toList)$toList$ findUpperbounds genLattice (flType$ flf (getAConcept p1 e1) (getAConcept p2 e2)) of -- note: we could have used GetOneGuarded, but this yields more specific error messages
           []  -> mustBeOrdered o (p1,e1) (p2,e2)
           [r@(h:_)]
               -> case (b1 || elem (getAConcept p1 e1) r,b2 || elem (getAConcept p2 e2) r ) of
@@ -837,13 +847,12 @@ pCtx2aCtx opts
     pIfc2aIfc declMap
              (P_Ifc { ifc_Roles = rols
                     , ifc_Obj = _
-                    , ifc_Pos = orig
+                    , pos = orig
                     , ifc_Prp = prp
                     }, objDisamb)
         = (\ obj'
              -> Ifc { ifcRoles = rols
                     , ifcObj = obj'
-                    , ifcEcas = []      -- to be enriched in Adl2fSpec with ECA-rules
                     , ifcControls = []  -- to be enriched in Adl2fSpec with rules to be checked
                     , ifcPos = orig
                     , ifcPrp = prp
@@ -854,13 +863,13 @@ pCtx2aCtx opts
      = (\ ds' 
         -> RR { rrRoles = rr_Roles prr
               , rrRels  = ds'
-              , rrPos   = rr_Pos prr
+              , rrPos   = origin prr
               }) <$> traverse (namedRel2Decl declMap) (rr_Rels prr)
     pRoleRule2aRoleRule :: P_RoleRule -> A_RoleRule
     pRoleRule2aRoleRule prr
      = A_RoleRule { arRoles = mRoles prr
                   , arRules = mRules prr
-                  , arPos   = mPos prr
+                  , arPos   = origin prr
                   }
     
     pPat2aPat :: DeclMap -> ContextInfo -> P_Pattern -> Guarded Pattern
@@ -874,7 +883,7 @@ pCtx2aCtx opts
        where
         f rules' keys' pops' views' xpls declsAndPops
            = A_Pat { ptnm  = name ppat
-                   , ptpos = pt_pos ppat
+                   , ptpos = origin ppat
                    , ptend = pt_end ppat
                    , ptrls = rules'
                    , ptgns = map pGen2aGen (pt_gns ppat)
@@ -890,7 +899,7 @@ pCtx2aCtx opts
     typeCheckRul :: 
                  String -- environment name (pattern / proc name)
               -> P_Rule (TermPrim, DisambPrim) -> Guarded Rule
-    typeCheckRul env P_Ru { rr_fps = orig
+    typeCheckRul env P_Ru { pos = orig
                           , rr_nm = nm
                           , rr_exp = expr
                           , rr_mean = meanings
@@ -922,7 +931,7 @@ pCtx2aCtx opts
                                     , identityAts = isegs'
                                     }) <$> traverse pIdentSegment2IdentSegment isegs
      where conc = pCpt2aCpt (ix_cpt pidt)
-           orig = ix_pos pidt
+           orig = origin pidt
            pIdentSegment2IdentSegment :: P_IdentSegmnt (TermPrim, DisambPrim) -> Guarded IdentitySegment
            pIdentSegment2IdentSegment (P_IdentExp ojd) =
               do o <- pObjDefDisamb2aObjDef declMap ojd
@@ -936,14 +945,14 @@ pCtx2aCtx opts
     typeCheckPairViewSeg _ _ (PairViewText orig x) = pure (PairViewText orig x)
     typeCheckPairViewSeg o t (PairViewExp orig s x)
      = do (e,(b,_)) <- typecheckTerm x
-          case toList . findSubsets genLattice . lJoin (aConcToType (source e)) $ getConcept s t of
+          case toList . findUpperbounds genLattice . lJoin (aConcToType (source e)) $ getConcept s t of
                           [] -> mustBeOrdered o (Src, origin (fmap fst x), e) (s,t)
                           lst -> if b || all (aConcToType (source e) `elem`) lst
                                  then pure (PairViewExp orig s (addEpsilonLeft (getAConcept s t) e))
                                  else mustBeBound (origin (fmap fst x)) [(Src, e)]
     pPurp2aPurp :: DeclMap -> PPurpose -> Guarded Purpose
     pPurp2aPurp declMap
-                PRef2 { pexPos    = orig     -- :: Origin
+                PRef2 { pos    = orig     -- :: Origin
                       , pexObj    = objref   -- :: PRefObj
                       , pexMarkup = pmarkup  -- :: P_Markup
                       , pexRefIDs  = refIds  -- :: [String]
@@ -967,7 +976,7 @@ pCtx2aCtx opts
     lookupConceptDef :: String -> ConceptDef
     lookupConceptDef s
      = case filter (\cd -> name cd == s) allConceptDefs of
-        []    -> Cd{cdpos=OriginUnknown, cdcpt=s, cdplug=True, cddef="", cdref="", cdfrom=n1} 
+        []    -> Cd{pos=OriginUnknown, cdcpt=s, cdplug=True, cddef="", cdref="", cdfrom=n1} 
         (x:_) -> x
     allConceptDefs :: [ConceptDef]
     allConceptDefs = p_conceptdefs++concatMap pt_cds p_patterns
@@ -988,17 +997,17 @@ pMean2aMean defLanguage defFormat pmeanings
  = AMeaning [ pMarkup2aMarkup defLanguage defFormat pmarkup | PMeaning pmarkup <-pmeanings ]
 pMess2aMess :: Lang           -- The default language
             -> PandocFormat   -- The default pandocFormat
-            -> PMessage -> A_Markup
+            -> PMessage -> Markup
 pMess2aMess defLanguage defFormat (PMessage x) = pMarkup2aMarkup defLanguage defFormat x
 pMarkup2aMarkup :: Lang           -- The default language
                 -> PandocFormat   -- The default pandocFormat
-                -> P_Markup -> A_Markup
+                -> P_Markup -> Markup
 pMarkup2aMarkup defLanguage defFormat
    P_Markup  { mLang   = ml
              , mFormat = mpdf
              , mString = str
              }
- = A_Markup { amLang = fromMaybe defLanguage ml -- The language is always defined; if not by the user, then by default.
+ = Markup { amLang = fromMaybe defLanguage ml -- The language is always defined; if not by the user, then by default.
             , amPandoc = string2Blocks fmt str
             }
      where
@@ -1061,3 +1070,8 @@ getConcept Src = aConcToType . source
 getConcept Tgt = aConcToType . target
 
 
+-- | Left-biased choice on maybes
+orElse :: Maybe a -> Maybe a -> Maybe a
+x `orElse` y = case x of
+                 Just _  -> x
+                 Nothing -> y
