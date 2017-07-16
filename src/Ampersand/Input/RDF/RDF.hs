@@ -105,7 +105,7 @@ rdf2pContext :: RDF a => String -> a -> P_Context
 rdf2pContext nm rdf  
    = PCtx{ ctx_nm     = nm
          , ctx_pos    = []
-         , ctx_lang   = Dutch
+         , ctx_lang   = Just Dutch
          , ctx_markup = Nothing
          , ctx_thms   = []
          , ctx_pats   = []
