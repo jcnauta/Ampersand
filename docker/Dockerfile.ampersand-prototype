@@ -20,5 +20,6 @@ ENV COMPOSER_HOME /usr/local/bin/
 
 # curl -s -L is to silently download the latest release HTML (after following redirect)
 # egrep -o '...' uses regex to find the file you want
-RUN curl -s -L $(curl -s -L https://api.github.com/repos/AmpersandTarski/Ampersand/releases/latest | egrep -o 'https://github.com/AmpersandTarski/Ampersand/releases/download/.+/ampersand' | uniq) > /usr/local/bin/ampersand
+RUN curl -s -L $(curl -s -L https://api.github.com/repos/AmpersandTarski/Ampersand/releases/latest | egrep -o 'https://github.com/AmpersandTarski/Ampersand/releases/download/.+/ampersand' | uniq) > /usr/local/bin/ampersand \
+ && chmod +x /usr/local/bin/ampersand
 
