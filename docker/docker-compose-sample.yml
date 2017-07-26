@@ -1,15 +1,17 @@
-version: '2'
+version: '3'
 
 services:
   prototype:
     restart: always
-    build: .
+    build:
+      context: .
+      args:
+        ADL_FILE: CHANGE_ME.adl
+
     ports:
       - "80:80"
     links:
       - db
-    environment:
-      - ADL_FILE=Script.adl
  
   db:
     restart: always
