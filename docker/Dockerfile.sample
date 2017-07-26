@@ -1,7 +1,9 @@
 FROM ampersandtarski/ampersand-prototype:latest
 
+ARG ADL_FILE
+ENV ADL_FILE=${ADL_FILE:-Script.adl}
+
 ENV AMPERSAND_DB_HOST=db
-ENV ADL_FILE=script.adl
 
 RUN mkdir /src
 
