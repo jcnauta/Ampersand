@@ -2,10 +2,17 @@
 # To generate functional specification documents use Dockerfile.fspec
 FROM php:7-apache
 
+ENV AMP_DEPS \
+             curl \
+             git \
+             less \
+             vim \
+             wget \
+             zlib1g-dev
+
 # install required php packages
-RUN apt-get update \
- # Install zlib
- && apt-get install -y --no-install-recommends zlib1g-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    $AMP_DEPS \
  && docker-php-ext-install mysqli \
  && a2enmod rewrite \
  # enable ZipArchive for importing .xlsx files on runtime

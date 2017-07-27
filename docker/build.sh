@@ -5,8 +5,11 @@
 
 set -e
 
-echo "Building ampersandtarski/ampersand-prototype"
-docker build --file Dockerfile.ampersand-prototype --tag ampersandtarski/ampersand-prototype .
+echo "Building ampersandtarski/ampersand-prototype:latest"
+docker build --tag ampersandtarski/ampersand-prototype:latest prototype
+
+echo "Building ampersandtarski/ampersand-prototype:texlive"
+docker build --tag ampersandtarski/ampersand-prototype:texlive prototype/texlive
 
 echo "Building ampersandtarski/ampersand-prototype-db"
-docker build --file Dockerfile.ampersand-prototype-db --tag ampersandtarski/ampersand-prototype-db .
+docker build --tag ampersandtarski/ampersand-prototype-db:latest prototype-db
