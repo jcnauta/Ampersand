@@ -4,16 +4,14 @@ module Ampersand.Prototype.Generate
   )
 where
 
+import Ampersand.Basics
 import Ampersand.Core.AbstractSyntaxTree 
-import Prelude hiding (writeFile,readFile,getContents,exp)
-import Data.Monoid
-import Data.String (IsString)
-import qualified Data.Text as Text
 import Ampersand.FSpec
 import Ampersand.Prototype.PHP
+import Data.Monoid
+import qualified Data.Text as Text
+import Prelude hiding (writeFile,readFile,getContents,exp)
 
-doubleQuote :: (Data.String.IsString m, Monoid m) => m -> m
-doubleQuote s = "\"" <> s <> "\""
 
 generateDBstructQueries :: FSpec -> Bool -> [Text.Text]
 generateDBstructQueries fSpec withComment = 
@@ -36,10 +34,13 @@ generateInitialPopQueries fSpec
     fillSignalTable [] = []
     fillSignalTable conjSignals 
      = [Text.unlines
-            [ "INSERT INTO "<>Text.pack (show (getTableName signalTableSpec))
-            , "   ("<>Text.intercalate ", " (map (Text.pack . doubleQuote) ["conjId","src","tgt"])<>")"
+            [ "INSERT INTO "<>(safeSQLString . Text.pack . tableName $ signalTableSpec)
+            , "   ("<>Text.intercalate ", " (map (safeSQLString . Text.pack) (attributeNames signalTableSpec))<>")"
             , "VALUES " <> Text.intercalate " , " 
-                  [ "(" <>Text.intercalate ", " [showAsValue (rc_id conj), showValPHP (apLeft p), showValPHP (apRight p)]<> ")" 
+                  [ "(" <>Text.intercalate ", " [(safeSQLString . Text.pack . rc_id $ conj)
+                                                ,(safeSQLString . Text.pack . showValSQL . apLeft  $ p)
+                                                ,(safeSQLString . Text.pack . showValSQL . apRight $ p)
+                                                ]<> ")" 
                   | (conj, viols) <- conjSignals
                   , p <- viols
                   ]
@@ -53,32 +54,30 @@ populateTablesWithPops ignoreDoubles fSpec =
       concatMap populatePlug [p | InternalPlug p <- plugInfos fSpec]
       where
         populatePlug :: PlugSQL -> [Text.Text]
-        populatePlug plug 
-          = case tableContents fSpec plug of
-             []  -> []
-             tblRecords 
-                 -> [Text.unlines
-                       [ "INSERT "<> (if ignoreDoubles then "IGNORE " else "") <>"INTO "
-                             <>Text.pack (show (name plug))
-                       , "   ("<>Text.intercalate ", " (map (Text.pack . show . attName) (plugAttributes plug))<>") "
-                       , "VALUES " <> Text.intercalate " , " 
-                          [ "(" <>valuechain md<> ")" | md<-tblRecords]
-                       ]
-                    ]
+        populatePlug plug = map insertRecord . tableContents fSpec $ plug 
+          -- = case tableContents fSpec plug of
+          --    []  -> []
+          --    tblRecords 
+          --        -> [Text.unlines
+          --              [ "INSERT "<> (if ignoreDoubles then "IGNORE " else "") <>"INTO "
+          --                    <>Text.pack (show (name plug))
+          --              , "   ("<>Text.intercalate ", " (map (Text.pack . show . attName) (plugAttributes plug))<>") "
+          --              , "VALUES " <> Text.intercalate " , " 
+          --                 [ "(" <>valuechain md<> ")" | md<-tblRecords]
+          --              ]
+          --           ]
          where
+           insertRecord md = 
+                Text.unlines
+                  [ "INSERT "<> (if ignoreDoubles then "IGNORE " else "") <>"INTO "
+                        <>Text.pack (show (name plug))
+                  , "   ("<>Text.intercalate ", " (map (safeSQLString . Text.pack . attName) (plugAttributes plug))<>") "
+                  , "VALUES " <> "(" <>valuechain md<> ")" 
+                  ]
            valuechain record 
              = Text.intercalate ", " 
                  [case att of 
                     Nothing -> "NULL"
-                    Just val -> showValPHP val
+                    Just val -> Text.pack $ showValSQL val
                  | att <- record ]
-
-showAsValue :: String -> Text.Text
-showAsValue str = Text.pack ("'"<>f str<>"'")
-  where f :: String -> String
-        f str'= 
-          case str' of
-            []        -> []
-            ('\'':cs) -> "\\\'"<> f cs  --This is required to ensure that the result of showValue will be a proper singlequoted string.
-            (c:cs)    -> c : f cs
 

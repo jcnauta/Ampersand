@@ -247,16 +247,9 @@ instance PStruct P_NamedRel where
  showP (PNamedRel _ rel mSgn)   = rel++maybe "" showsign mSgn
   where     showsign (P_Sign src trg) = "["++showP src++"*"++showP trg++"]"
 
-
 instance PStruct Lang where
  showP Dutch   = "IN DUTCH"
  showP English = "IN ENGLISH"
-
-
-
-doubleQuote :: String -> String
-doubleQuote str = "\""++str++"\""
-
 
 instance PStruct PandocFormat where
  showP LaTeX = "LATEX "

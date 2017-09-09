@@ -464,32 +464,26 @@ aavstr = unpack.aavtxt
 showValPHP :: AAtomValue -> Text
 showValPHP val = pack$
   case val of
-   AAVString{}  -> "'"++f (aavstr val)++"'"
-     where
-        f str'=
-          case str' of
-            []        -> []
-            ('\'':cs) -> "\\\'"++ f cs  --This is required to ensure that the result of showValue will be a proper singlequoted string.
-            ('\\':s') -> "\\\\" ++ f s'
-            (c:cs)    -> c : f cs
+   AAVString{}  -> safePHPString (aavstr val)
    AAVInteger{} -> show (aavint val)
    AAVBoolean{} -> show (aavbool val)
-   AAVDate{}    -> "'"++showGregorian (aadateDay val)++"'"
-   AAVDateTime {} -> "'"++DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)++"'" --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
+   AAVDate{}    -> safePHPString (showGregorian (aadateDay val))
+   AAVDateTime {} -> safePHPString(DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
      --formatTime SL.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}   -> show (aavflt val)
-   AtomValueOfONE{} -> "1"
+   AtomValueOfONE{} -> safePHPString "1"
 showValSQL :: AAtomValue -> String
 showValSQL val =
   case val of
-   AAVString{}  -> aavstr val
+   AAVString{}  -> safeSQLString . aavstr  $ val
    AAVInteger{} -> show (aavint val)
    AAVBoolean{} -> show (aavbool val)
    AAVDate{}    -> showGregorian (aadateDay val)
-   AAVDateTime {} -> "'"++DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)++"'" --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
+   AAVDateTime {} -> safeSQLString (DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
      --formatTime SL.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
-   AAVFloat{}   -> show (aavflt val)
-   AtomValueOfONE{} -> "1"
+   AAVFloat{}   ->             show . aavflt $ val
+   AtomValueOfONE{} -> safeSQLString "1"
+ 
 showValADL :: AAtomValue -> String
 showValADL val =
   case val of

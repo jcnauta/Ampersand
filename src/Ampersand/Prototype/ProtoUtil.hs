@@ -4,9 +4,8 @@ module Ampersand.Prototype.ProtoUtil
          , writePrototypeAppFile
          , copyDirRecursively, copyDeepFile, removeAllDirectoryFiles, getProperDirectoryContents
          , escapeIdentifier,commentBlock,strReplace
-         , addSlashes
          , indentBlock,addToLast
-         , indentBlockBetween,quote
+         , indentBlockBetween--,quote
          , showValPHP,phpIndent,showPhpStr,escapePhpStr,showPhpBool, showPhpMaybeBool
          , installComposerLibs
          ) where
@@ -90,12 +89,12 @@ getProperDirectoryContents pth =
        <$> getDirectoryContents pth
 
 
-quote :: Text.Text->Text.Text
-quote = Text.pack . quote' . Text.unpack
-  where
-    quote' [] = []
-    quote' ('`':s) = '`':s  -- do nothing if already quoted
-    quote' s = "`"<>s<>"`"
+--quote :: Text.Text->Text.Text
+--quote = Text.pack . quote' . Text.unpack
+--  where
+--    quote' [] = []
+--    quote' ('`':s) = '`':s  -- do nothing if already quoted
+--    quote' s = "`"<>s<>"`"
 --   quote s = "`"<>quo s<>"`"
 --    where quo ('`':s')  = "\\`" <> quo s'
 --          quo ('\\':s') = "\\\\" <> quo s'
@@ -141,15 +140,6 @@ phpIndent i
  | i < 0     = Text.pack " " --space instead of \n
  | otherwise = Text.pack $ '\n':replicate i ' '
 
-
-addSlashes :: Text.Text -> Text.Text
-addSlashes = Text.pack . addSlashes' . Text.unpack
-  where
-    addSlashes' ('\'': cs) = "\\'"<>addSlashes' cs
-    addSlashes' ('"': cs) = "\\\""<>addSlashes' cs
-    addSlashes' ('\\': cs) = "\\\\"<>addSlashes' cs
-    addSlashes' (c:cs) = c:addSlashes' cs
-    addSlashes' "" = ""
 
 addToLast :: [a] -> [[a]] -> [[a]]
 addToLast _ [] = fatal "addToLast: empty list"

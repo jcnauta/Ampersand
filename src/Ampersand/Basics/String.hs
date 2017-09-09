@@ -1,12 +1,19 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
   -- | This module contains some common String funcions
 module Ampersand.Basics.String 
         ( unCap,upCap
         , escapeNonAlphaNum
         , escapeIdentifier
         , optionalQuote
+        , singleQuote,doubleQuote
+        , SafeText(..)
         ) where
 
 import Data.Char
+import Data.Monoid
+import Data.String(IsString)
+import qualified Data.Text as Text
 
 -- | Converts the first character of a string to lowercase, with the exception that there is a second character, which is uppercase.
 -- uncap "AbcDe" == "abcDe"
@@ -48,3 +55,59 @@ optionalQuote str
     []  -> True
     [_] -> False
     _   -> True
+
+singleQuote :: (Data.String.IsString m, Monoid m) => m -> m
+singleQuote str = "`"<>str<>"`"  -- at least this is correct for SQL. For PHP too??
+
+doubleQuote :: (Data.String.IsString m, Monoid m) => m -> m
+doubleQuote s = "\"" <> s <> "\""
+
+-- | This function takes a string and puts quotes on them in an SQL specific way. 
+--   it will also make sure that any character in the original string that
+--   causes some conflict wrt SQL is properly escaped. This way, the result
+--   is a proper string that can be used in any SQL statement.  
+        
+-- | This function takes a string and puts quotes on them in an PHP specific way. 
+--   it will also make sure that any character in the original string that
+--   causes some conflict wrt PHP is properly escaped. This way, the result
+--   is a proper string that can be used in any PHP statement.  
+        
+class SafeText a where
+  safeSQLString :: a -> a
+  safeSQL       :: a -> a
+  safePHPString :: a -> a
+  safePHP       :: a -> a
+
+instance SafeText Text.Text where
+  safeSQLString = singleQuote . safeSQL
+  safeSQL str = 
+    case Text.uncons str of
+      Nothing -> Text.empty
+      Just (c , cs) 
+        | c == '\'' -> "''" <> safeSQL cs
+        | otherwise -> c `Text.cons` safeSQL cs
+  safePHPString = singleQuote . safePHP
+  safePHP str = 
+    case Text.uncons str of
+      Nothing -> Text.empty
+      Just (c , cs) 
+        | c == '\'' -> "\'" <> safePHP cs
+        | c == '\\' -> "\\" <> safePHP cs
+        | otherwise -> c `Text.cons` safePHP cs
+  
+instance SafeText String where
+  safeSQLString = singleQuote . safeSQL
+  safeSQL str = 
+    case str of
+      [] -> []
+      (c:cs) 
+        | c == '\'' -> "''" <> safeSQL cs
+        | otherwise -> c : safeSQL cs
+  safePHPString = singleQuote . safePHP
+  safePHP str = 
+    case str of
+      [] -> []
+      (c:cs) 
+        | c == '\'' -> "\'" <> safePHP cs
+        | c == '\\' -> "\\" <> safePHP cs
+        | otherwise -> c : safePHP cs

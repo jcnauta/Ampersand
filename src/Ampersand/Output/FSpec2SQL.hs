@@ -10,6 +10,7 @@ import Ampersand.Prototype.Generate
 import Ampersand.Core.ShowAStruct
 import Ampersand.FSpec
 import Ampersand.FSpec.SQL
+import Data.Char (isPrint,showLitChar)
 import Data.Monoid
 import qualified Data.Text as Text
 import Ampersand.Core.AbstractSyntaxTree
@@ -17,7 +18,7 @@ import Ampersand.Core.AbstractSyntaxTree
 
 dumpSQLqueries :: MultiFSpecs -> Text.Text
 dumpSQLqueries multi
-   = Text.intercalate "\n" $ 
+   = traceBadChars . Text.unlines $ 
          header (Text.pack ampersandVersionStr)
        <>header "Database structure queries"
        <>generateDBstructQueries fSpec True
@@ -31,6 +32,16 @@ dumpSQLqueries multi
        <>concatMap showInterface (interfaceS fSpec <> interfaceG fSpec)
     
    where
+     traceBadChars :: Text.Text -> Text.Text
+     traceBadChars str = Text.concatMap handleChar str
+--       case Text.uncons str of
+--         Nothing       -> Text.empty
+--         Just (c , cs) -> handleChar c <> traceBadChars cs
+      where
+        handleChar c 
+          | isPrint c = Text.singleton (c)
+          | c=='\n'   = Text.singleton (c)
+          | otherwise = "XXXX HIER ->"<>Text.pack (show c)<>"<-IS HET MAFFE CHARACTER XXXX"
      fSpec = userFSpec multi
      showInterface :: Interface -> [Text.Text]
      showInterface ifc 
