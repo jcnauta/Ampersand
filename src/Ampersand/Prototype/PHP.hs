@@ -57,8 +57,8 @@ createTablePHP :: TableSpec -> [Text.Text]
 createTablePHP tSpec =
   map (Text.pack . ("// "<>)) (tsCmnt tSpec) <>
   [-- Drop table if it already exists
-    "if($columns = mysqli_query($DB_link, "<>safePHPString ("SHOW COLUMNS FROM "<>(safeSQLString . Text.pack . tsName $ tSpec))<>")){"
-  , "    mysqli_query($DB_link, "<>safePHPString ("DROP TABLE "<>(safeSQLString . Text.pack . tsName $ tSpec))<>");"
+    "if($columns = mysqli_query($DB_link, "<>safePHPString ("SHOW COLUMNS FROM "<>(safeSQLObjectName . Text.pack . tsName $ tSpec))<>")){"
+  , "    mysqli_query($DB_link, "<>safePHPString ("DROP TABLE "<>(safeSQLObjectName . Text.pack . tsName $ tSpec))<>");"
   , "}"
   ] <>
   [ "$sql="<>safePHPString (Text.unlines $ createTableSql True tSpec)<>";"
@@ -75,14 +75,14 @@ createTableSql withComment tSpec =
         then map Text.pack . commentBlockSQL . tsCmnt $ tSpec
         else mempty
       ) <>
-      [ "CREATE TABLE "<>(safeSQLString . Text.pack . tsName $ tSpec)] <>
+      [ "CREATE TABLE "<>(safeSQLObjectName . Text.pack . tsName $ tSpec)] <>
       [ Text.replicate indnt " " <> Text.pack [pref] <> " " <> addColumn att 
       | (pref, att) <- zip ('(' : repeat ',') (tsflds tSpec)] <>
       ( if null (tsKey tSpec) 
         then []
         else [ Text.replicate indnt " " <> ", " <> Text.pack (tsKey tSpec) ]
       ) <>
-      [ Text.replicate indnt " " <> ", " <> safeSQLString "ts_insertupdate"<>" TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"]<>
+      [ Text.replicate indnt " " <> ", " <> safeSQLObjectName "ts_insertupdate"<>" TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"]<>
       [ Text.replicate indnt " " <> ") ENGINE     = InnoDB DEFAULT CHARACTER SET UTF8 COLLATE UTF8_BIN" ]<>
       [ Text.replicate indnt " " <> ", ROW_FORMAT = DYNAMIC"]<>
       [ "" ]
@@ -90,7 +90,7 @@ createTableSql withComment tSpec =
     indnt = 5
     addColumn :: AttributeSpec -> Text.Text
     addColumn att 
-       =    (safeSQLString . Text.pack . fsname $ att) <> " " 
+       =    (safeSQLObjectName . Text.pack . fsname $ att) <> " " 
          <> (Text.pack . showSQL . fstype $ att) 
          <> (if fsIsPrimKey att then " UNIQUE" else "")
          <> (if fsDbNull att then " DEFAULT NULL" else " NOT NULL")
@@ -173,7 +173,7 @@ sessionTableSpec =
                              , fsDbNull    = False
                              }
                          ]
-              , tsKey  = "PRIMARY KEY (`SESSION`)"
+              , tsKey  = "PRIMARY KEY ("<>safeSQLObjectName "SESSION"<>")"
               }
 
 
@@ -294,7 +294,7 @@ connectToTheDatabasePHP =
     , "  }"
     , ""
     ]<>
-    [ "$sql="<>safeSQLString("SET SESSION sql_mode = 'ANSI,TRADITIONAL';") -- ANSI because of the syntax of the generated SQL
+    [ "$sql="<>safePHPString("SET SESSION sql_mode = 'ANSI,TRADITIONAL';") -- ANSI because of the syntax of the generated SQL
                                                             -- TRADITIONAL because of some more safety
     , "if (!mysqli_query($DB_link,$sql)) {"
     , "  die('Error setting sql_mode: ' . mysqli_error($DB_link));"
@@ -335,7 +335,7 @@ createTempDatabase fSpec =
     , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
     , "" 
     , "    /* file_format = Barracuda is required for long columns */"
-    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_file_format = "<>safeSQLString "Barracuda"))<>";"
+    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_file_format = "<>safeSQLObjectName "Barracuda"))<>";"
     , "    $result=mysqli_query($DB_link, $sql);"
     , "       if(!$result)"
     , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
@@ -349,12 +349,12 @@ createTempDatabase fSpec =
     ]<> 
     [ "$DB_name="<>Text.pack (safePHPString (tempDbName (getOpts fSpec)))<>";"
     , "// Drop the database if it exists"
-    , "$sql="<>Text.pack (safePHPString ("DROP DATABASE "<>(safeSQLString . tempDbName . getOpts $ fSpec)))<>";"
+    , "$sql="<>Text.pack (safePHPString ("DROP DATABASE "<>(safeSQLObjectName . tempDbName . getOpts $ fSpec)))<>";"
     , "mysqli_query($DB_link,$sql);"
     , "// Don't bother about the error if the database didn't exist..."
     , ""
     , "// Create the database"
-    , "$sql="<>Text.pack (safePHPString("CREATE DATABASE "<>(safeSQLString . tempDbName . getOpts $ fSpec)<>" DEFAULT CHARACTER SET UTF8 COLLATE utf8_bin"))<>";"
+    , "$sql="<>Text.pack (safePHPString("CREATE DATABASE "<>(safeSQLObjectName . tempDbName . getOpts $ fSpec)<>" DEFAULT CHARACTER SET UTF8 COLLATE utf8_bin"))<>";"
     , "if (!mysqli_query($DB_link,$sql)) {"
     , "  die('Error creating the database: ' . mysqli_error($DB_link));"
     , "  }"
@@ -381,8 +381,8 @@ createTempDatabase fSpec =
           [] -> []
           tblRecords 
              -> ( "mysqli_query($DB_link, "<>
-                         safePHPString ( "INSERT INTO "<>(safeSQLString . Text.pack . name $ plug)
-                                       <>" ("<>Text.intercalate "," (map (safeSQLString . Text.pack . attName) (plugAttributes plug))<>")"
+                         safePHPString ( "INSERT INTO "<>(safeSQLObjectName . Text.pack . name $ plug)
+                                       <>" ("<>Text.intercalate "," (map (safeSQLLiteral . Text.pack . attName) (plugAttributes plug))<>")"
                                        <>phpIndent 17<>"VALUES " <> Text.intercalate (phpIndent 22<>", ") [ "(" <>valuechain md<> ")" | md<-tblRecords]
                                        <>phpIndent 16
                                  )
@@ -401,9 +401,9 @@ tableSpec2Queries :: Bool -> TableSpec -> [SqlQuery]
 tableSpec2Queries withComment tSpec = 
  (SqlQuery $ createTableSql withComment tSpec
  ):
- [SqlQuery [ Text.pack $ "CREATE INDEX "<> safeSQLString (tsName tSpec<>"_"<>fsname fld)
-                             <>" ON "<>safeSQLString (tsName tSpec)
-                             <>" ("<>safeSQLString (fsname fld)<>")"
+ [SqlQuery [ Text.pack $ "CREATE INDEX "<> safeSQLObjectName (tsName tSpec<>"_"<>fsname fld)
+                             <>" ON "<>safeSQLObjectName (tsName tSpec)
+                             <>" ("<>safeSQLObjectName (fsname fld)<>")"
            ]
  | fld <- tsflds tSpec
  , not (fsIsPrimKey fld)
@@ -416,6 +416,6 @@ additionalDatabaseSettings = [ SqlQuery ["SET TRANSACTION ISOLATION LEVEL SERIAL
 sqlQuery2Text :: Bool -> SqlQuery -> Text.Text
 sqlQuery2Text withComment (SqlQuery ts)
    = if withComment 
-     then Text.unlines ts
+     then Text.unlines ts <>";"
      else Text.unwords . Text.words . Text.unlines $ ts
 

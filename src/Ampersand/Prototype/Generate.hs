@@ -34,12 +34,12 @@ generateInitialPopQueries fSpec
     fillSignalTable [] = []
     fillSignalTable conjSignals 
      = [Text.unlines
-            [ "INSERT INTO "<>(safeSQLString . Text.pack . tableName $ signalTableSpec)
-            , "   ("<>Text.intercalate ", " (map (safeSQLString . Text.pack) (attributeNames signalTableSpec))<>")"
+            [ "INSERT INTO "<>(safeSQLObjectName . Text.pack . tableName $ signalTableSpec)
+            , "   ("<>Text.intercalate ", " (map (safeSQLObjectName . Text.pack) (attributeNames signalTableSpec))<>")"
             , "VALUES " <> Text.intercalate " , " 
-                  [ "(" <>Text.intercalate ", " [(safeSQLString . Text.pack . rc_id $ conj)
-                                                ,(safeSQLString . Text.pack . showValSQL . apLeft  $ p)
-                                                ,(safeSQLString . Text.pack . showValSQL . apRight $ p)
+                  [ "(" <>Text.intercalate ", " [(safeSQLLiteral . Text.pack . rc_id $ conj)
+                                                ,(safeSQLLiteral . Text.pack . showValSQL . apLeft  $ p)
+                                                ,(safeSQLLiteral . Text.pack . showValSQL . apRight $ p)
                                                 ]<> ")" 
                   | (conj, viols) <- conjSignals
                   , p <- viols
@@ -71,7 +71,7 @@ populateTablesWithPops ignoreDoubles fSpec =
                 Text.unlines
                   [ "INSERT "<> (if ignoreDoubles then "IGNORE " else "") <>"INTO "
                         <>Text.pack (show (name plug))
-                  , "   ("<>Text.intercalate ", " (map (safeSQLString . Text.pack . attName) (plugAttributes plug))<>") "
+                  , "   ("<>Text.intercalate ", " (map (safeSQLObjectName . Text.pack . attName) (plugAttributes plug))<>") "
                   , "VALUES " <> "(" <>valuechain md<> ")" 
                   ]
            valuechain record 

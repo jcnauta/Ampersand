@@ -322,7 +322,7 @@ genViewInterface fSpec interf =
  do { lns <- genViewObject fSpec 0 (_ifcObj interf)
     ; template <- readTemplate fSpec "views/Interface.html"
     ; let contents = renderTemplate template $
-                       setAttribute "contextName"         (safeSQLString . fsName $ fSpec)
+                       setAttribute "contextName"         (safePHPString . fsName $ fSpec)
                      . setAttribute "isTopLevel"          ((name . source . _ifcExp $ interf) `elem` ["ONE", "SESSION"])
                      . setAttribute "roles"               (map show . _ifcRoles $ interf) -- show string, since StringTemplate does not elegantly allow to quote and separate
                      . setAttribute "ampersandVersionStr" ampersandVersionStr

@@ -475,14 +475,14 @@ showValPHP val = pack$
 showValSQL :: AAtomValue -> String
 showValSQL val =
   case val of
-   AAVString{}  -> safeSQLString . aavstr  $ val
+   AAVString{}  -> safeSQLLiteral . aavstr  $ val
    AAVInteger{} -> show (aavint val)
    AAVBoolean{} -> show (aavbool val)
    AAVDate{}    -> showGregorian (aadateDay val)
-   AAVDateTime {} -> safeSQLString (DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
+   AAVDateTime {} -> safeSQLLiteral (DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
      --formatTime SL.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}   ->             show . aavflt $ val
-   AtomValueOfONE{} -> safeSQLString "1"
+   AtomValueOfONE{} -> safeSQLLiteral "1"
  
 showValADL :: AAtomValue -> String
 showValADL val =

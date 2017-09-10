@@ -10,7 +10,7 @@ import Ampersand.Prototype.Generate
 import Ampersand.Core.ShowAStruct
 import Ampersand.FSpec
 import Ampersand.FSpec.SQL
-import Data.Char (isPrint,showLitChar)
+import Data.Char (isPrint)
 import Data.Monoid
 import qualified Data.Text as Text
 import Ampersand.Core.AbstractSyntaxTree
@@ -23,7 +23,7 @@ dumpSQLqueries multi
        <>header "Database structure queries"
        <>generateDBstructQueries fSpec True
        <>header "Initial population queries"
-       <>generateInitialPopQueries fSpec
+       <>map (\q -> q <> ";") (generateInitialPopQueries fSpec)
        <>header "Violations of conjuncts"
        <>concatMap showConjunct (allConjuncts fSpec)
        <>header "Queries per relation"
@@ -41,7 +41,7 @@ dumpSQLqueries multi
         handleChar c 
           | isPrint c = Text.singleton (c)
           | c=='\n'   = Text.singleton (c)
-          | otherwise = "XXXX HIER ->"<>Text.pack (show c)<>"<-IS HET MAFFE CHARACTER XXXX"
+          | otherwise = "Error: THIS ->"<>Text.pack (show c)<>"<-IS AN INVALID CHARACTER!"
      fSpec = userFSpec multi
      showInterface :: Interface -> [Text.Text]
      showInterface ifc 
@@ -51,12 +51,12 @@ dumpSQLqueries multi
           showObjDef :: ObjectDef -> [Text.Text]
           showObjDef obj
             = (header . Text.pack . showA . objExpression) obj
-            <>[Text.pack$ (prettySQLQueryWithPlaceholder 2 fSpec . objExpression) obj]
+            <>[Text.pack$ (prettySQLQueryWithPlaceholder 2 fSpec . objExpression) obj,";"]
             <>case objmsub obj of
                  Nothing  -> []
                  Just sub -> showSubInterface sub
             <>header ("Broad query for the object at " <> (Text.pack . show . origin) obj)
-            <>[Text.pack . prettyBroadQueryWithPlaceholder 2 fSpec $ obj]
+            <>[Text.pack . prettyBroadQueryWithPlaceholder 2 fSpec $ obj,";"]
           showSubInterface :: SubInterface -> [Text.Text]
           showSubInterface sub = 
             case sub of 
@@ -66,22 +66,24 @@ dumpSQLqueries multi
      showConjunct :: Conjunct -> [Text.Text]
      showConjunct conj 
         = header (Text.pack$ rc_id conj)
-        <>["Rules for this conjunct:"]
-        <>map showRule (rc_orgRules conj)
-        <>[Text.pack$ prettySQLQuery 2 fSpec . conjNF (getOpts fSpec) . notCpl . rc_conjunct $ conj,""]
+        <>[sqlCommnt "Rules for this conjunct:"]
+        <>map (sqlCommnt . showRule) (rc_orgRules conj)
+        <>[Text.pack$ prettySQLQuery 2 fSpec . conjNF (getOpts fSpec) . notCpl . rc_conjunct $ conj,";"]
         where
           showRule r 
             = Text.pack ("  - "<>name r<>": "<>showA r)
+     sqlCommnt :: Text.Text -> Text.Text
+     sqlCommnt t = "/* "<>t<>" */"
      showDecl :: Relation -> [Text.Text]
      showDecl decl 
         = header (Text.pack$ showA decl)
-        <>[Text.pack . prettySQLQuery 2 fSpec $ decl,""]
+        <>[Text.pack . prettySQLQuery 2 fSpec $ decl,";"]
      header :: Text.Text -> [Text.Text]
      header title = 
          [ ""
-         , Text.replicate width "*"
-         , "***"<>spaces firstspaces<>title<>spaces (width-6-firstspaces-l)<>"***"
-         , Text.replicate width "*"
+         , "/"<>Text.replicate width "*"<>"/"
+         , "/***"<>spaces firstspaces<>title<>spaces (width-6-firstspaces-l)<>"***/"
+         , "/"<>Text.replicate width "*"<>"/"
          , ""
          ]
        where width = maximum [80 , l + 8]

@@ -38,7 +38,7 @@ escapeNonAlphaNum = concatMap escapeNonAlphaNumChar
 
 -- Create an identifier that does not start with a digit and consists only of upper/lowercase ascii letters, underscores, and digits.
 -- This function is injective.
-escapeIdentifier :: String -> String
+escapeIdentifier :: String -> String  -- TODO: get rid of this function. It has multiple concerns. In it's usage, different problems are solve. Very confusing! (and thus probably wrong)
 escapeIdentifier ""      = "_EMPTY_"
 escapeIdentifier (c0:cs) = encode False c0 ++ concatMap (encode True) cs
   where encode allowNum c | isAsciiLower c || isAsciiUpper c || allowNum && isDigit c = [c]
@@ -57,29 +57,35 @@ optionalQuote str
     _   -> True
 
 singleQuote :: (Data.String.IsString m, Monoid m) => m -> m
-singleQuote str = "`"<>str<>"`"  -- at least this is correct for SQL. For PHP too??
+singleQuote str = "'"<>str<>"'"  -- at least this is correct for SQL. For PHP too??
 
 doubleQuote :: (Data.String.IsString m, Monoid m) => m -> m
 doubleQuote s = "\"" <> s <> "\""
 
--- | This function takes a string and puts quotes on them in an SQL specific way. 
---   it will also make sure that any character in the original string that
---   causes some conflict wrt SQL is properly escaped. This way, the result
---   is a proper string that can be used in any SQL statement.  
         
+        
+class SafeText a where
+-- https://www.ibm.com/support/knowledgecenter/en/SSBJG3_2.5.0/com.ibm.gen_busug.doc/c_fgl_sql_programming_080.htm says:
+-- The ANSI SQL standards define doubles quotes as database object names delimiters, while single quotes are dedicated to string literals:
+--   CREATE TABLE "my table" ( "column 1" CHAR(10) ) 
+--   SELECT COUNT(*) FROM "my table" WHERE "column 1" = 'abc'
+-- If you want to write a single quote character inside a string literal, you must write 2 single quotes:
+--   ... WHERE comment = 'John''s house'        
+  safeSQLObjectName :: a -> a
+  safeSQLLiteral :: a -> a
+  safeSQL       :: a -> a
+
 -- | This function takes a string and puts quotes on them in an PHP specific way. 
 --   it will also make sure that any character in the original string that
 --   causes some conflict wrt PHP is properly escaped. This way, the result
 --   is a proper string that can be used in any PHP statement.  
-        
-class SafeText a where
-  safeSQLString :: a -> a
-  safeSQL       :: a -> a
   safePHPString :: a -> a
   safePHP       :: a -> a
 
+
 instance SafeText Text.Text where
-  safeSQLString = singleQuote . safeSQL
+  safeSQLObjectName = doubleQuote . safeSQL
+  safeSQLLiteral = singleQuote . safeSQL
   safeSQL str = 
     case Text.uncons str of
       Nothing -> Text.empty
@@ -96,7 +102,8 @@ instance SafeText Text.Text where
         | otherwise -> c `Text.cons` safePHP cs
   
 instance SafeText String where
-  safeSQLString = singleQuote . safeSQL
+  safeSQLObjectName = doubleQuote . safeSQL
+  safeSQLLiteral = singleQuote . safeSQL
   safeSQL str = 
     case str of
       [] -> []
