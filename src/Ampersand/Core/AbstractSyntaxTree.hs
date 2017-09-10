@@ -471,7 +471,7 @@ showValPHP val = pack$
    AAVDateTime {} -> safePHPString(DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
      --formatTime SL.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}   -> show (aavflt val)
-   AtomValueOfONE{} -> safePHPString "1"
+   AtomValueOfONE{} -> "1"
 showValSQL :: AAtomValue -> String
 showValSQL val =
   case val of
@@ -482,7 +482,7 @@ showValSQL val =
    AAVDateTime {} -> safeSQLLiteral (DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
      --formatTime SL.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}   ->             show . aavflt $ val
-   AtomValueOfONE{} -> safeSQLLiteral "1"
+   AtomValueOfONE{} -> "1"
  
 showValADL :: AAtomValue -> String
 showValADL val =
@@ -493,7 +493,7 @@ showValADL val =
    AAVDate{}    -> showGregorian (aadateDay val)
    AAVDateTime {} -> DTF.formatTime DTF.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}   -> show (aavflt val)
-   AtomValueOfONE{} -> "1"
+   AtomValueOfONE{} -> "ONE"
 
 data ExplObj = ExplConceptDef ConceptDef
              | ExplRelation Relation
