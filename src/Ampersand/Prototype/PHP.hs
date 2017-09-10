@@ -294,7 +294,8 @@ connectToTheDatabasePHP =
     , "  }"
     , ""
     ]<>
-    [ "$sql="<>safePHPString("SET SESSION sql_mode = 'ANSI,TRADITIONAL';") -- ANSI because of the syntax of the generated SQL
+    [ "$sql="<>safePHPString("SET SESSION sql_mode = "<>safeSQLObjectName "ANSI,TRADITIONAL"<>";") 
+                                                            -- ANSI because of the syntax of the generated SQL
                                                             -- TRADITIONAL because of some more safety
     , "if (!mysqli_query($DB_link,$sql)) {"
     , "  die('Error setting sql_mode: ' . mysqli_error($DB_link));"
