@@ -481,7 +481,7 @@ showValSQL val =
    AAVDate{}    -> showGregorian (aadateDay val)
    AAVDateTime {} -> safeSQLLiteral (DTF.formatTime DTF.defaultTimeLocale "%F %T" (aadatetime val)) --NOTE: MySQL 5.5 does not comply to ISO standard. This format is MySQL specific
      --formatTime SL.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
-   AAVFloat{}   ->             show . aavflt $ val
+   AAVFloat{}   -> show . aavflt $ val
    AtomValueOfONE{} -> "1"
  
 showValADL :: AAtomValue -> String

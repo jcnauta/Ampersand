@@ -294,7 +294,7 @@ connectToTheDatabasePHP =
     , "  }"
     , ""
     ]<>
-    [ "$sql="<>safePHPString("SET SESSION sql_mode = "<>safeSQLObjectName "ANSI,TRADITIONAL"<>";") 
+    [ "$sql="<>safePHPString("SET SESSION sql_mode = "<>safeSQLObjectName "ANSI,TRADITIONAL") <>";"
                                                             -- ANSI because of the syntax of the generated SQL
                                                             -- TRADITIONAL because of some more safety
     , "if (!mysqli_query($DB_link,$sql)) {"
@@ -336,7 +336,7 @@ createTempDatabase fSpec =
     , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
     , "" 
     , "    /* file_format = Barracuda is required for long columns */"
-    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_file_format = "<>safeSQLObjectName "Barracuda"))<>";"
+    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_file_format = "<>safeSQLLiteral "Barracuda"))<>";"
     , "    $result=mysqli_query($DB_link, $sql);"
     , "       if(!$result)"
     , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
@@ -381,14 +381,16 @@ createTempDatabase fSpec =
         case tableContents fSpec plug of
           [] -> []
           tblRecords 
-             -> ( "mysqli_query($DB_link, "<>
+             -> [ "$sqlQuery="<>
                          safePHPString ( "INSERT INTO "<>(safeSQLObjectName . Text.pack . name $ plug)
                                        <>" ("<>Text.intercalate "," (map (safeSQLLiteral . Text.pack . attName) (plugAttributes plug))<>")"
                                        <>phpIndent 17<>"VALUES " <> Text.intercalate (phpIndent 22<>", ") [ "(" <>valuechain md<> ")" | md<-tblRecords]
                                        <>phpIndent 16
                                  )
                                            <>");"
-                ):["if($err=mysqli_error($DB_link)) { $error=true; echo $err.'<br />'; }"]
+                , "mysqli_query($DB_link,$sqlQuery);"
+                , "if($err=mysqli_error($DB_link)) { $error=true; echo $err.'<br />'; }"
+                ]
        where
         valuechain :: [Maybe AAtomValue] -> Text.Text
         valuechain record = Text.intercalate ", " [case att of Nothing -> "NULL" ; Just val -> Text.pack . showValSQL $ val | att<-record]

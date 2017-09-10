@@ -56,15 +56,15 @@ optionalQuote str
     [_] -> False
     _   -> True
 
-singleQuote :: (Data.String.IsString m, Monoid m) => m -> m
-singleQuote str = "'"<>str<>"'"  -- at least this is correct for SQL. For PHP too??
+singleQuote :: (IsString m, Monoid m) => m -> m
+singleQuote str = "'"<>str<>"'"
 
-doubleQuote :: (Data.String.IsString m, Monoid m) => m -> m
+doubleQuote :: (IsString m, Monoid m) => m -> m
 doubleQuote s = "\"" <> s <> "\""
 
         
         
-class SafeText a where
+class (IsString a, Monoid a) => SafeText a where
 -- https://www.ibm.com/support/knowledgecenter/en/SSBJG3_2.5.0/com.ibm.gen_busug.doc/c_fgl_sql_programming_080.htm says:
 -- The ANSI SQL standards define doubles quotes as database object names delimiters, while single quotes are dedicated to string literals:
 --   CREATE TABLE "my table" ( "column 1" CHAR(10) ) 
@@ -72,49 +72,48 @@ class SafeText a where
 -- If you want to write a single quote character inside a string literal, you must write 2 single quotes:
 --   ... WHERE comment = 'John''s house'        
   safeSQLObjectName :: a -> a
-  safeSQLLiteral :: a -> a
-  safeSQL       :: a -> a
+  safeSQLObjectName = doubleQuote . safeSQL
+  safeSQLLiteral    :: a -> a
+  safeSQLLiteral    = singleQuote . safeSQL
+  safeSQL :: a -> a
 
 -- | This function takes a string and puts quotes on them in an PHP specific way. 
 --   it will also make sure that any character in the original string that
 --   causes some conflict wrt PHP is properly escaped. This way, the result
 --   is a proper string that can be used in any PHP statement.  
-  safePHPString :: a -> a
-  safePHP       :: a -> a
+  safePHPString     :: a -> a
+  safePHPString     = doubleQuote . safePHP
+  safePHP :: a -> a
 
 
 instance SafeText Text.Text where
-  safeSQLObjectName = doubleQuote . safeSQL
-  safeSQLLiteral = singleQuote . safeSQL
   safeSQL str = 
     case Text.uncons str of
       Nothing -> Text.empty
       Just (c , cs) 
         | c == '\'' -> "''" <> safeSQL cs
+        | c == '\"' -> "\"" <> safeSQL cs
         | otherwise -> c `Text.cons` safeSQL cs
-  safePHPString = singleQuote . safePHP
   safePHP str = 
     case Text.uncons str of
       Nothing -> Text.empty
       Just (c , cs) 
-        | c == '\'' -> "\'" <> safePHP cs
+        | c == '\"' -> "\"" <> safePHP cs
         | c == '\\' -> "\\" <> safePHP cs
         | otherwise -> c `Text.cons` safePHP cs
   
 instance SafeText String where
-  safeSQLObjectName = doubleQuote . safeSQL
-  safeSQLLiteral = singleQuote . safeSQL
   safeSQL str = 
     case str of
       [] -> []
       (c:cs) 
         | c == '\'' -> "''" <> safeSQL cs
+        | c == '\"' -> "\"" <> safeSQL cs
         | otherwise -> c : safeSQL cs
-  safePHPString = singleQuote . safePHP
   safePHP str = 
     case str of
       [] -> []
       (c:cs) 
-        | c == '\'' -> "\'" <> safePHP cs
+        | c == '\"' -> "\"" <> safePHP cs
         | c == '\\' -> "\\" <> safePHP cs
         | otherwise -> c : safePHP cs
