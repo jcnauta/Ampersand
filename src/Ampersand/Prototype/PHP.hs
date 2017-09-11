@@ -357,12 +357,12 @@ createTempDatabase fSpec =
     ]<> 
     [ "$DB_name="<>Text.pack (safePHPString (tempDbName (getOpts fSpec)))<>";"
     , "// Drop the database if it exists"
-    , "$sql="<>Text.pack (safePHPString ("DROP DATABASE "<>(safeSQLObjectName . tempDbName . getOpts $ fSpec)))<>";"
+    , "$sql="<>Text.pack (safePHPString "DROP DATABASE $DB_name"<>";")
     , "mysqli_query($DB_link,$sql);"
     , "// Don't bother about the error if the database didn't exist..."
     , ""
     , "// Create the database"
-    , "$sql="<>Text.pack (safePHPString("CREATE DATABASE "<>(safeSQLObjectName . tempDbName . getOpts $ fSpec)<>" DEFAULT CHARACTER SET UTF8 COLLATE utf8_bin"))<>";"
+    , "$sql="<>Text.pack (safePHPString("CREATE DATABASE $DB_name DEFAULT CHARACTER SET UTF8 COLLATE utf8_bin"))<>";"
     , "if (!mysqli_query($DB_link,$sql)) {"
     , "  die('Error creating the database: ' . mysqli_error($DB_link));"
     , "  }"
