@@ -387,7 +387,7 @@ createTempDatabase fSpec =
                                        <>phpIndent 17<>"VALUES " <> Text.intercalate (phpIndent 22<>", ") [ "(" <>valuechain md<> ")" | md<-tblRecords]
                                        <>phpIndent 16
                                  )
-                                           <>");"
+                                           <>";"
                 , "mysqli_query($DB_link,$sqlQuery);"
                 , "if($err=mysqli_error($DB_link)) { $error=true; echo $err.'<br />'; }"
                 ]

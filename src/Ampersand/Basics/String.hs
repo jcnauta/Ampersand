@@ -98,7 +98,7 @@ instance SafeText Text.Text where
     case Text.uncons str of
       Nothing -> Text.empty
       Just (c , cs) 
-        | c == '\"' -> "\"" <> safePHP cs
+        | c == '\"' -> "\\\"" <> safePHP cs
         | c == '\\' -> "\\" <> safePHP cs
         | otherwise -> c `Text.cons` safePHP cs
   
@@ -114,6 +114,6 @@ instance SafeText String where
     case str of
       [] -> []
       (c:cs) 
-        | c == '\"' -> "\"" <> safePHP cs
+        | c == '\"' -> "\\\"" <> safePHP cs
         | c == '\\' -> "\\" <> safePHP cs
         | otherwise -> c : safePHP cs
