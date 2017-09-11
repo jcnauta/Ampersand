@@ -383,17 +383,22 @@ createTempDatabase fSpec =
           tblRecords 
              -> [ "$sqlQuery="<>
                          safePHPString ( "INSERT INTO "<>(safeSQLObjectName . Text.pack . name $ plug)
-                                       <>" ("<>Text.intercalate "," (map (safeSQLLiteral . Text.pack . attName) (plugAttributes plug))<>")"
-                                       <>phpIndent 17<>"VALUES " <> Text.intercalate (phpIndent 22<>", ") [ "(" <>valuechain md<> ")" | md<-tblRecords]
-                                       <>phpIndent 16
-                                 )
-                                           <>";"
+                                       <>" ("<>Text.intercalate "," (map (safeSQLObjectName . Text.pack . attName) (plugAttributes plug))<>")"
+                                       <>phpIndent 14<>"VALUES " <> Text.intercalate (phpIndent 19<>", ") [ "(" <>valuechain md<> ")" | md<-tblRecords]
+                                       <>phpIndent 10
+                                       )<>";"
                 , "mysqli_query($DB_link,$sqlQuery);"
                 , "if($err=mysqli_error($DB_link)) { $error=true; echo $err.'<br />'; }"
                 ]
        where
         valuechain :: [Maybe AAtomValue] -> Text.Text
-        valuechain record = Text.intercalate ", " [case att of Nothing -> "NULL" ; Just val -> Text.pack . showValSQL $ val | att<-record]
+        valuechain record = 
+           Text.intercalate ", " 
+             [case att of 
+                 Nothing  -> "NULL" 
+                 Just val -> Text.pack . showValSQL $ val 
+             | att<-record
+             ]
 
 
 -- *** MySQL stuff below:
