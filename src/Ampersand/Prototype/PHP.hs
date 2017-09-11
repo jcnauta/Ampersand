@@ -195,9 +195,16 @@ performQuery fSpec dbNm queryStr =
               fatal ("PHP/SQL problem: "<>queryResult)
       else case reads queryResult of
              [(pairs,"")] -> return pairs
-             _            -> fatal ("Parse error on php result: \n"<>(unlines . indent 5 . lines $ queryResult))
+             _            -> fatal (  "Parse error on php result: \n"
+                                    <>(unlines . indent 5 . lines $ queryResult)
+                                    <>"\nOriginal query:\n"
+                                    <>(unlines . showNumbered . lines $ queryStr)
+                                   )
     } 
    where
+    showNumbered :: [String] -> [String]
+    showNumbered xs = map makeLine (zip [1::Int  ..] xs)
+      where makeLine (nr, str) = "/*"<>show nr<>"*/"<>str
     opts = getOpts fSpec
     php :: [Text.Text]
     php =
