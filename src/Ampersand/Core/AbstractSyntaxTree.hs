@@ -493,7 +493,7 @@ showValADL val =
    AAVDate{}    -> showGregorian (aadateDay val)
    AAVDateTime {} -> DTF.formatTime DTF.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}   -> show (aavflt val)
-   AtomValueOfONE{} -> "ONE"
+   AtomValueOfONE{} -> "1"
 
 data ExplObj = ExplConceptDef ConceptDef
              | ExplRelation Relation
