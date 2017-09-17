@@ -8,6 +8,7 @@ import Ampersand.Output.ToJSON.JSONutils
 import Ampersand.Core.AbstractSyntaxTree 
 import Data.Maybe
 import Data.List(nub)
+import qualified Data.Text as Text
 
 data Concepts = Concepts [Concept] deriving (Generic, Show)
 data Concept = Concept
@@ -106,7 +107,7 @@ instance JSON ViewSegment Segment where
                        ViewExp expr -> Just . showA $ expr
                        _            -> Nothing
   , segJSONexpSQL  = case vsmLoad seg of
-                       ViewExp expr -> Just $ sqlQuery fSpec expr
+                       ViewExp expr -> Just . Text.unpack . toHaskellText $ sqlQuery fSpec expr
                        _            -> Nothing
   , segJSONtext    = case vsmLoad seg of
                        ViewText str -> Just str

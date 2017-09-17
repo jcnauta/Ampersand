@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {- | The intentions behind FSpec (SJ 30 dec 2008):
 Generation of functional designs is a core functionality of Ampersand.
 All items in a specification are generated into the following data structure, FSpec.
@@ -42,6 +43,7 @@ import Ampersand.Core.ParseTree
         , ConceptDef
         )
 import Ampersand.Core.AbstractSyntaxTree
+import Ampersand.Core.ShowAStruct
 import Ampersand.FSpec.Crud
 import Ampersand.Misc
 import Text.Pandoc.Builder (Blocks)
@@ -139,7 +141,7 @@ data Atom = Atom { atmRoots :: [A_Concept] -- The root concept(s) of the atom.
                  , atmVal   :: AAtomValue
                  } deriving (Typeable,Eq)
 instance Unique Atom where
-  showUnique a = showValADL (atmVal a)++" in "
+  showUnique a = showA (atmVal a)++" in "
          ++case atmRoots a of
              []  -> fatal "an atom must have at least one root concept"
              [x] -> uniqueShow True x
@@ -264,7 +266,7 @@ instance Named PlugSQL where
 instance Eq PlugSQL where
   x==y = name x==name y
 instance Unique PlugSQL where
-  showUnique = optionalQuote . name
+  showUnique = quoteWhenMultipleWords . name
 instance Ord PlugSQL where
   compare x y = compare (name x) (name y)
 
@@ -301,7 +303,7 @@ data SqlAttributeUsage = PrimaryKey A_Concept
                        | PlainAttr             -- None of the above
                        deriving (Eq, Show)
 
-data SqlAttribute = Att { attName :: String
+data SqlAttribute = Att { attName :: String --should this be SQLText or ADLText??
                         , attExpr :: Expression     -- ^ De target van de expressie geeft de waarden weer in de SQL-tabel-kolom.
                         , attType :: TType
                         , attUse ::  SqlAttributeUsage
@@ -329,8 +331,8 @@ isForeignKey att = case attUse att of
                     ForeignKey _ -> True
                     _ -> False
 
-showSQL :: TType -> String
-showSQL tt =
+showSQL :: TType -> SQLText
+showSQL tt = toSQL $ 
   case tt of 
      Alphanumeric     -> "VARCHAR(255)"
      BigAlphanumeric  -> "TEXT"

@@ -59,7 +59,7 @@ instance JSON MultiFSpecs MetaPopulation where
 instance JSON A_Concept AtomValuesOfConcept where
  fromAmpersand multi cpt = AtomValuesOfConcept
    { avcJSONconcept = Text.pack (name cpt)
-   , avcJSONatoms   = map (Text.pack . showValADL) (atomsBySmallestConcept grindedFSpec cpt)
+   , avcJSONatoms   = map (Text.pack . toADLTxt) (atomsBySmallestConcept grindedFSpec cpt)
    }
   where 
    grindedFSpec = fromMaybe ftl (metaFSpec multi)
@@ -75,7 +75,7 @@ instance JSON Relation PairsOfRelation where
      where ftl = fatal "There is no grinded fSpec."
 instance JSON AAtomPair JPair where
   fromAmpersand _ p = JPair
-    { prJSONsrc = Text.pack . showValADL . apLeft $ p 
-    , prJSONtgt = Text.pack . showValADL . apRight $ p
+    { prJSONsrc = Text.pack . toADLTxt . apLeft $ p 
+    , prJSONtgt = Text.pack . toADLTxt . apRight $ p
     }
 

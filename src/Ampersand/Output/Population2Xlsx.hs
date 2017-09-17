@@ -4,6 +4,7 @@ module Ampersand.Output.Population2Xlsx
 where
 import Ampersand.FSpec
 import Ampersand.Core.AbstractSyntaxTree
+import Ampersand.Core.ShowAStruct
 import Codec.Xlsx
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
@@ -69,12 +70,12 @@ plugs2Sheets fSpec = mapMaybe plug2sheet $ plugInfos fSpec
                                     Nothing -> Nothing
                                     Just aVal -> Just $
                                       case aVal of
-                                        AAVString{} -> CellText $ T.pack (aavstr aVal)
+                                        AAVString{} -> CellText (aavtxt aVal)
                                         AAVInteger _ int -> CellDouble (fromInteger int)
                                         AAVFloat _ x -> CellDouble x
                                         AAVBoolean _ b -> CellBool b
                                         AAVDate _ day -> (CellDouble . fromInteger) (diffDays (fromGregorian 1900 1 1) day)
-                                        _ -> fatal ( "Content found that cannot be converted to Excel (yet): "++show aVal) 
+                                        _ -> fatal ( "Content found that cannot be converted to Excel (yet): "++showA aVal) 
                    , _cellComment = Nothing
                    , _cellFormula = Nothing
                    }

@@ -4,7 +4,7 @@ import Prelude
 import Data.Char
 import Data.List
 import Data.Maybe
-import Data.Text (pack)
+import qualified Data.Text as Text
 import Ampersand.ADL1
 import Ampersand.Basics
 import Ampersand.Classes
@@ -25,7 +25,7 @@ import Ampersand.Core.ShowAStruct
 such as the code generator, the functional-specification generator, and future extentions. -}
 makeFSpec :: Options -> A_Context -> FSpec
 makeFSpec opts context
- =      FSpec { fsName       = pack (name context)
+ =      FSpec { fsName       = Text.pack (name context)
               , originalContext = context 
               , getOpts      = opts
               , fspos        = ctxpos context
@@ -472,8 +472,8 @@ tblcontents ci ps plug
                        [p] -> Just (apRight p)
                        ps' -> fatal . unlines $ 
                                 [ "There is an attempt to populate multiple values into "
-                                , "     the row of table `"++name plug++"`, where id = "++show(showValADL a)++":"
-                                , "     Values to be inserted in field `"++name att++"` are: "++show (map (showValADL . apRight) ps')
+                                , "     the row of table `"++name plug++"`, where id = "++(Text.unpack . toHaskellText . toADLTxt $ a)++":"
+                                , "     Values to be inserted in field `"++name att++"` are: "++show (map (Text.unpack . toHaskellText . toADLTxt . apRight) ps')
                                 ] --this has happend before due to:
                                   --    when using --dev flag
                                   --  , when there are violations

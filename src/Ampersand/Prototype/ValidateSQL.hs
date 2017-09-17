@@ -25,11 +25,7 @@ validateRulesSQL fSpec =
     ; verboseLn (getOpts fSpec)  "Initializing temporary database (this could take a while)"
     ; createTempDatabase fSpec
 
-    ; let allExps = getAllInterfaceExps fSpec ++
-                    getAllRuleExps fSpec ++
-                    getAllPairViewExps fSpec ++
-                    getAllIdExps fSpec ++
-                    getAllViewExps fSpec
+    ; let allExps = allExprs fSpec
 
     ; verboseLn (getOpts fSpec)  $ "Number of expressions to be validated: "++show (length allExps)
     ; results <- mapM (validateExp fSpec) allExps
@@ -40,12 +36,13 @@ validateRulesSQL fSpec =
                  }
         ves -> return $ "Validation error. The following expressions failed validation:"
                       : map showVExp ves
-                             
-               
     }
+
 stringify :: (Rule,[AAtomPair]) -> (String,[String])
-stringify (rule,pairs) = (name rule, map f pairs )
-  where f pair = "("++showValADL (apLeft pair)++", "++showValADL (apRight pair)++")"
+stringify (rule,pairs) = (name rule, map (f . showPairADL) pairs )
+   where f (a,b) = "( "++a++", "++b++" )"
+showPairADL :: AAtomPair -> (String, String)
+showPairADL pair = (toADLTxt (apLeft pair), toADLTxt (apRight pair))
 
 
 -- functions for extracting all expressions from the context
@@ -91,7 +88,7 @@ validateExp _  vExp@(EDcD{}, _)   = -- skip all simple relations
     }
 validateExp fSpec vExp@(exp, orig) =
  do { violationsSQL <- evaluateExpSQL fSpec (tempDbName (getOpts fSpec)) exp
-    ; let violationsAmp = [(showValADL (apLeft p), showValADL (apRight p)) | p <- pairsInExpr fSpec exp]
+    ; let violationsAmp = map showPairADL (pairsInExpr fSpec exp)
     ; if sort violationsSQL == sort violationsAmp
       then
        do { putStr "."
@@ -106,7 +103,7 @@ validateExp fSpec vExp@(exp, orig) =
           ; putStrLn "SQL violations:"
           ; print violationsSQL
           ; putStrLn "Ampersand violations:"
-          ; print violationsAmp
+          ; sequence (map putStrLn violationsAmp)
           ; return (vExp, False)
           }
     }

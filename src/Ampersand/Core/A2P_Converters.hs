@@ -17,7 +17,7 @@ import Ampersand.Core.ParseTree
 import Ampersand.Core.AbstractSyntaxTree
 import Data.Maybe
 import Data.Char
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 aCtx2pCtx :: A_Context -> P_Context
 aCtx2pCtx ctx = 
@@ -74,7 +74,7 @@ aRule2pRule rul =
 
 aRelation2pRelation :: Relation -> P_Relation
 aRelation2pRelation dcl = 
- P_Sgn { dec_nm     = T.unpack $ decnm dcl
+ P_Sgn { dec_nm     = Text.unpack $ decnm dcl
        , dec_sign   = aSign2pSign (decsgn dcl)
        , dec_prps   = decprps dcl
        , dec_pragma = [decprL dcl, decprM dcl, decprR dcl]
@@ -86,7 +86,7 @@ aRelation2pRelation dcl =
 
 aRelation2pNamedRel :: Relation -> P_NamedRel
 aRelation2pNamedRel dcl =
- PNamedRel (decfpos dcl) (T.unpack $ decnm dcl) (Just (aSign2pSign (decsgn dcl)))
+ PNamedRel (decfpos dcl) (Text.unpack $ decnm dcl) (Just (aSign2pSign (decsgn dcl)))
  
 aIdentityDef2pIdentityDef :: IdentityDef -> P_IdentDf TermPrim -- P_IdentDef
 aIdentityDef2pIdentityDef iDef =
@@ -152,7 +152,7 @@ aConcept2pConcept :: A_Concept -> P_Concept
 aConcept2pConcept cpt =
  case cpt of
    ONE            -> P_Singleton
-   PlainConcept{} -> PCpt { p_cptnm = T.unpack $ cptnm cpt
+   PlainConcept{} -> PCpt { p_cptnm = Text.unpack $ cptnm cpt
                           }
 
 aPurpose2pPurpose :: Purpose -> Maybe PPurpose 
@@ -293,27 +293,27 @@ aAtomValue2pAtomValue AtomValueOfONE = fatal "Unexpected AtomValueOfONE in conve
 aAtomValue2pAtomValue val =
   case aavtyp val of
     Alphanumeric     -> case val of 
-                          AAVString{} -> ScriptString o (aavstr val)
+                          AAVString{} -> ScriptString o (Text.unpack . aavtxt $ val)
                           _         -> fatal "Unexpected combination of value types"
     BigAlphanumeric  -> case val of 
-                          AAVString{} -> ScriptString o (aavstr val)
+                          AAVString{} -> ScriptString o (Text.unpack . aavtxt $ val)
                           _         -> fatal "Unexpected combination of value types"
     HugeAlphanumeric -> case val of 
-                          AAVString{} -> ScriptString o (aavstr val)
+                          AAVString{} -> ScriptString o (Text.unpack . aavtxt $ val)
                           _         -> fatal "Unexpected combination of value types"
     Password         -> case val of 
-                          AAVString{} -> ScriptString o (aavstr val)
+                          AAVString{} -> ScriptString o (Text.unpack . aavtxt $ val)
                           _         -> fatal  "Unexpected combination of value types"
     Binary           -> fatal $ show (aavtyp val) ++ " cannot be represented in P-structure currently."
     BigBinary        -> fatal $ show (aavtyp val) ++ " cannot be represented in P-structure currently."
     HugeBinary       -> fatal $ show (aavtyp val) ++ " cannot be represented in P-structure currently."
     Date             -> case val of
                           AAVDate{} -> --TODO: Needs rethinking. A string or a double?
-                                       ScriptString o (showValADL val)
+                                       ScriptString o (show . aadateDay $ val)
                           _         -> fatal "Unexpected combination of value types"
     DateTime         -> case val of
                           AAVDateTime{} -> --TODO: Needs rethinking. A string or a double?
-                                       ScriptString o (showValADL val)
+                                       ScriptString o (show . aadatetime $ val)
                           _         -> fatal "Unexpected combination of value types"
     Integer          -> case val of
                           AAVInteger{} -> XlsxDouble o (fromInteger (aavint val))
@@ -325,7 +325,7 @@ aAtomValue2pAtomValue val =
                           AAVBoolean{} -> ComnBool o (aavbool val)
                           _            -> fatal "Unexpected combination of value types"
     Object           -> case val of 
-                          AAVString{} -> ScriptString o (aavstr val)
+                          AAVString{} -> ScriptString o (Text.unpack . aavtxt $ val)
                           _         -> fatal "Unexpected combination of value types"
     TypeOfOne        -> fatal "Unexpected combination of value types"
   where

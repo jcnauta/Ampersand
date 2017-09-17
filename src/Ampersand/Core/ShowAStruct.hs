@@ -2,9 +2,11 @@ module Ampersand.Core.ShowAStruct
   (AStruct(..))
 where
 
+import Ampersand.Basics
 import Ampersand.Core.AbstractSyntaxTree
 import Ampersand.Core.ShowPStruct
 import Ampersand.Core.A2P_Converters
+import qualified Data.Text as Text
 
 class AStruct a where
  showA :: a -> String
@@ -31,15 +33,9 @@ instance AStruct AAtomPair where
  showA p = "("++showA (apLeft p)++","++ showA (apRight p)++")"
 
 instance AStruct AAtomValue where
- showA at = case at of
-              AAVString{} -> show (aavstr at)
-              AAVInteger _ i   -> show i
-              AAVFloat   _ f   -> show f
-              AAVBoolean _ b   -> show b
-              AAVDate _ day    -> show day
-              AAVDateTime _ dt -> show dt
-              AtomValueOfONE -> "1"
-
+ showA a = Text.unpack txt
+   where 
+     ADLText txt = toADLTxt a
 instance AStruct ExplObj where
  showA = showP . aExplObj2PRef2Obj
 

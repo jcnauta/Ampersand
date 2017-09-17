@@ -26,7 +26,7 @@ import Data.Char(toUpper,toLower)
 import Data.Either
 import GHC.Stack
 import Data.Hashable
-import Data.Text (pack)
+import qualified Data.Text as Text
 import Control.Arrow(first)
 
 data Type = UserConcept String
@@ -141,22 +141,22 @@ checkOtherAtomsInSessionConcept ctx = case [mkOtherAtomInSessionError atom
                                            , name cpt == "SESSION"
                                            , atom <- popas pop
                                            -- SJC: I think we should not allow _SESSION in a POPULATION statement, as there is no current session at that time (_SESSION should only be allowed as Atom in expressions)
-                                           , not (_isPermittedSessionValue atom)
+                                           , not (isPermittedSessionValue atom)
                                            ] ++
                                            [ mkOtherTupleInSessionError d pr
                                            | ARelPopu{popsrc = src,poptgt = tgt,popdcl = d,popps = ps} <- ctxpopus ctx
                                            , name src == "SESSION" || name tgt == "SESSION"
                                            , pr <- ps
-                                           , (name src == "SESSION" && not (_isPermittedSessionValue (apLeft pr)))
+                                           , (name src == "SESSION" && not (isPermittedSessionValue (apLeft pr)))
                                              ||
-                                             (name tgt == "SESSION" && not (_isPermittedSessionValue (apRight pr)))
+                                             (name tgt == "SESSION" && not (isPermittedSessionValue (apRight pr)))
                                            ]
                                            of
                                         [] -> return ()
                                         errs -> Errors errs
-        where _isPermittedSessionValue :: AAtomValue -> Bool
-              _isPermittedSessionValue v@AAVString{} = aavstr v == "_SESSION"
-              _isPermittedSessionValue _                 = False
+        where isPermittedSessionValue :: AAtomValue -> Bool
+              isPermittedSessionValue v@AAVString{} = aavtxt v == Text.pack "_SESSION"
+              isPermittedSessionValue _                 = False
 
 pSign2aSign :: P_Sign -> Signature
 pSign2aSign (P_Sign src tgt) = Sign (pCpt2aCpt src) (pCpt2aCpt tgt)
@@ -480,7 +480,7 @@ pCtx2aCtx opts
     pDecl2aDecl patNm contextInfo defLanguage defFormat pd
      = let (prL:prM:prR:_) = dec_pragma pd ++ ["", "", ""]
            dcl = Relation
-                     { decnm   = pack (dec_nm pd)
+                     { decnm   = Text.pack (dec_nm pd)
                      , decsgn  = decSign
                      , decprps = dec_prps pd
                      , decprps_calc = Nothing  --decprps_calc in an A_Context are still the user-defined only. prps are calculated in adl2fspec.

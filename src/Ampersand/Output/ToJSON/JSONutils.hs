@@ -16,7 +16,7 @@ import Ampersand.Core.ParseTree as X
 import Ampersand.Core.ShowAStruct as X
 import Ampersand.FSpec.ToFSpec.Populated as X
 import Ampersand.FSpec.FSpec as X
-import Ampersand.FSpec.SQL as X (sqlQuery,sqlQueryWithPlaceholder,placeHolderSQL,broadQueryWithPlaceholder) 
+import Ampersand.FSpec.SQL as X (sqlQuery) 
 import Ampersand.Misc as X
 import Ampersand.Basics as X
 import Ampersand.Classes as X

@@ -37,9 +37,9 @@ generateInitialPopQueries fSpec
             [ "INSERT INTO "<>(safeSQLObjectName . Text.pack . tableName $ signalTableSpec)
             , "   ("<>Text.intercalate ", " (map (safeSQLObjectName . Text.pack) (attributeNames signalTableSpec))<>")"
             , "VALUES " <> Text.intercalate " , " 
-                  [ "(" <>Text.intercalate ", " [(safeSQLLiteral . Text.pack . rc_id $ conj)
-                                                ,(safeSQLLiteral . Text.pack . showValSQL . apLeft  $ p)
-                                                ,(safeSQLLiteral . Text.pack . showValSQL . apRight $ p)
+                  [ "(" <>Text.intercalate ", " [(Text.pack . safeSQLLiteral . rc_id $ conj)
+                                                ,(Text.pack . safeSQLLiteral . showValSQL . apLeft  $ p)
+                                                ,(Text.pack . safeSQLLiteral . showValSQL . apRight $ p)
                                                 ]<> ")" 
                   | (conj, viols) <- conjSignals
                   , p <- viols
@@ -78,6 +78,6 @@ populateTablesWithPops ignoreDoubles fSpec =
              = Text.intercalate ", " 
                  [case att of 
                     Nothing -> "NULL"
-                    Just val -> Text.pack $ showValSQL val
+                    Just val -> Text.pack . safeSQLLiteral $ showValSQL val
                  | att <- record ]
 

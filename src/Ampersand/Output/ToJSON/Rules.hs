@@ -4,10 +4,11 @@
 module Ampersand.Output.ToJSON.Rules 
   (Rules)
 where
-import Ampersand.Output.ToJSON.JSONutils 
 import Ampersand.Core.AbstractSyntaxTree 
 import Ampersand.FSpec
+import Ampersand.Output.ToJSON.JSONutils 
 import Data.Maybe
+import qualified Data.Text as Text
 
 data Rules = Rules
   { rulJSONinvariants :: [JsonRule]
@@ -89,7 +90,7 @@ instance JSON (Int,PairViewSegment Expression)  JsonPairViewSegment where
                            PairViewExp _ _ e         -> Just . show . target $ e
   , pvsJSONexpSQL      = case pvs of
                            PairViewText{} -> Nothing
-                           PairViewExp _ _ e         -> Just . sqlQuery fSpec $ e
+                           PairViewExp _ _ e         -> Just . Text.unpack . toHaskellText . sqlQuery fSpec $ e
   , pvsJSONexpIsIdent  = case pvs of
                            PairViewText{} -> Nothing
                            PairViewExp _ _ e         -> Just . isIdent $ e --show $ e

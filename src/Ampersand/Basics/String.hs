@@ -5,14 +5,19 @@ module Ampersand.Basics.String
         ( unCap,upCap
         , escapeNonAlphaNum
         , escapeIdentifier
-        , optionalQuote
-        , singleQuote,doubleQuote
-        , SafeText(..)
+        , quoteWhenMultipleWords
+        , ADLText(ADLText),SQLText,PHPText
+        , SafeConvert(..)
+        , toPHP, toSQL, toADL
+        , singleQuote
+        , doubleQuote
+        , sqlLiteral, sqlObjectName
         ) where
 
+import Ampersand.Basics.Version (fatal)
 import Data.Char
 import Data.Monoid
-import Data.String(IsString)
+import Data.String(IsString(..))
 import qualified Data.Text as Text
 
 -- | Converts the first character of a string to lowercase, with the exception that there is a second character, which is uppercase.
@@ -45,8 +50,8 @@ escapeIdentifier (c0:cs) = encode False c0 ++ concatMap (encode True) cs
                           | c == '_'  = "__" -- shorthand for '_' to improve readability
                           | otherwise = "_" ++ show (ord c) ++ "_"
 
-optionalQuote :: String -> String
-optionalQuote str
+quoteWhenMultipleWords :: String -> String
+quoteWhenMultipleWords str
   | needsQuotes = show str
   | otherwise   = str 
  where
@@ -62,18 +67,151 @@ singleQuote str = "'"<>str<>"'"
 doubleQuote :: (IsString m, Monoid m) => m -> m
 doubleQuote s = "\"" <> s <> "\""
 
-        
-        
-class (IsString a, Monoid a) => SafeText a where
+data PHPText = PHPText Text.Text deriving (Eq,Ord)
+data SQLText = SQLText Text.Text deriving (Eq,Ord)
+data ADLText = ADLText Text.Text deriving (Eq,Ord)
+
+instance Monoid PHPText where
+  mempty = PHPText Text.empty
+  mappend (PHPText a) (PHPText b) = PHPText (mappend a b)
+
+instance Monoid SQLText where
+  mempty = SQLText Text.empty
+  mappend (SQLText a) (SQLText b) = SQLText (mappend a b)
+
+instance Monoid ADLText where
+  mempty = ADLText Text.empty
+  mappend (ADLText a) (ADLText b) = ADLText (mappend a b)
+
+instance IsString PHPText where
+  fromString = PHPText . Text.pack 
+
+instance IsString SQLText where
+  fromString = SQLText . Text.pack 
+
+instance IsString ADLText where
+  fromString = ADLText . Text.pack 
+
+class (IsString a, Monoid a) => SafeConvert a where
+  fromHaskellText :: Text.Text -> a
+  toHaskellText :: a -> Text.Text
+  safeSQL :: a -> SQLText
+  safePHP :: a -> PHPText
+  safeADL :: a -> ADLText
+  unwordsT :: [a] -> a 
+  unwordsT = fromHaskellText . Text.unwords . map toHaskellText
+  wordsT :: a -> [a]
+  wordsT = map fromHaskellText . Text.words . toHaskellText
+  intercalateT :: a -> [a] -> a
+  intercalateT txt ts = 
+     fromHaskellText $ Text.intercalate (toHaskellText txt) (map toHaskellText ts) 
+  linesT :: a -> [a]
+  linesT = map fromHaskellText . Text.lines . toHaskellText
+  unlinesT :: [a] -> a
+  unlinesT = fromHaskellText . Text.unlines . map toHaskellText
+  nullT :: a -> Bool
+  nullT = Text.null . toHaskellText
+
+instance SafeConvert SQLText where
+  fromHaskellText = SQLText . convertTo SQL
+  toHaskellText (SQLText txt) = convertFrom SQL txt
+  safeSQL = fatal "Trying to convert SQLText to SQLText. This could be done with `id`, but a fatal has temporarily been used just to keep track of these things..." 
+  safePHP = fromHaskellText . toHaskellText
+  safeADL = fromHaskellText . toHaskellText 
+instance SafeConvert PHPText where
+  fromHaskellText = PHPText . convertTo PHP
+  toHaskellText (PHPText txt) = convertFrom PHP txt
+  safeSQL = fromHaskellText . toHaskellText
+  safePHP = fatal "Trying to convert PHPText to PHPText. This could be done with `id`, but a fatal has temporarily been used just to keep track of these things..." 
+  safeADL = fromHaskellText . toHaskellText
+instance SafeConvert ADLText where
+  fromHaskellText = ADLText . convertTo ADL
+  toHaskellText (ADLText txt) = convertFrom ADL txt
+  safeSQL = fromHaskellText . toHaskellText
+  safePHP = fromHaskellText . toHaskellText
+  safeADL = fatal "Trying to convert ADLText to ADLText. This could be done with `id`, but a fatal has temporarily been used just to keep track of these things..." 
+data TextType = PHP | SQL | ADL
+
+toPHP :: Text.Text -> PHPText
+toPHP = fromHaskellText
+toSQL :: Text.Text -> SQLText
+toSQL = fromHaskellText
+toADL :: Text.Text -> ADLText
+toADL = fromHaskellText
+
+convertTo :: TextType -> Text.Text -> Text.Text
+convertTo SQL txt = 
+  case Text.uncons txt of
+    Nothing -> mempty
+    Just (c , cs) 
+      | c == '\'' -> "''" <>       convertTo SQL cs
+      | c == '\"' -> "\"" <>       convertTo SQL cs
+      | c == '\\' -> "\\" <>       convertTo SQL cs
+      | otherwise -> c `Text.cons` convertTo SQL cs
+convertTo PHP txt =
+  case Text.uncons txt of
+    Nothing -> Text.empty
+    Just (c , cs) 
+      | c == '\"' -> "\"" <>       convertTo PHP cs
+      | c == '\\' -> "\\" <>       convertTo PHP cs
+      | otherwise -> c `Text.cons` convertTo PHP cs
+convertTo ADL txt =
+  case Text.uncons txt of
+    Nothing -> Text.empty
+    Just (c , cs)
+      | c == '\'' -> "''" <>       convertTo ADL cs
+      | otherwise -> c `Text.cons` convertTo ADL cs
+
+convertFrom :: TextType -> Text.Text -> Text.Text
+convertFrom SQL txt = 
 -- https://www.ibm.com/support/knowledgecenter/en/SSBJG3_2.5.0/com.ibm.gen_busug.doc/c_fgl_sql_programming_080.htm says:
 -- The ANSI SQL standards define doubles quotes as database object names delimiters, while single quotes are dedicated to string literals:
 --   CREATE TABLE "my table" ( "column 1" CHAR(10) ) 
 --   SELECT COUNT(*) FROM "my table" WHERE "column 1" = 'abc'
 -- If you want to write a single quote character inside a string literal, you must write 2 single quotes:
 --   ... WHERE comment = 'John''s house'        
-  safeSQLObjectName :: a -> a
+  case Text.uncons txt of
+    Nothing -> mempty
+    Just (c , cs)
+      | c == '\'' -> case Text.uncons cs of
+                       Nothing -> mempty
+                       Just (c' , cs')
+                         | c' == '\'' -> "'" <> convertFrom SQL cs'
+                         | otherwise  ->        convertFrom SQL cs'
+      | c == '\\' -> case Text.uncons cs of
+                       Nothing -> fatal "Last character of SQLText is '\\', which should not happen!"
+                       Just (c' , cs')
+                         | c' == '\"' -> "\"" <> convertFrom SQL cs'
+                         | c' == '\\' -> "\\" <> convertFrom SQL cs'
+                         | otherwise  -> fatal $ "A character of SQL Text is '\\', followed by a character '"++[c]++"', which should not happen!"
+      | otherwise -> c `Text.cons` convertFrom SQL cs
+convertFrom PHP txt =
+  case Text.uncons txt of
+    Nothing -> mempty
+    Just (c , cs)
+      | c == '\\' -> case Text.uncons cs of
+                       Nothing -> fatal "Last character of PHPText is '\\', which should not happen!"
+                       Just (c' , cs')
+                         | c' == '\"' -> "\"" <> convertFrom PHP cs'
+                         | c' == '\\' -> "\\" <> convertFrom PHP cs'
+                         | otherwise  -> fatal $ "A character of PHP Text is '\\', followed by a character '"++[c]++"', which should not happen!"
+      | otherwise -> c `Text.cons` convertFrom PHP cs
+convertFrom ADL txt =
+  case Text.uncons txt of
+    Nothing -> mempty
+    Just (c , cs)
+      | c == '\'' -> case Text.uncons cs of
+                       Nothing -> mempty
+                       Just (c' , cs')
+                         | c' == '\'' -> "'" <> convertFrom ADL cs'
+                         | otherwise  -> fatal $ "Single quote in an ADL Text should not be possible.\n"<>show txt
+      | otherwise -> c `Text.cons` convertFrom ADL cs
+
+
+{- class (IsString a, Monoid a) => SafeText a where
+  safeSQLObjectName :: a -> SQLText
   safeSQLObjectName = doubleQuote . safeSQL
-  safeSQLLiteral    :: a -> a
+  safeSQLLiteral    :: a -> SQLText
   safeSQLLiteral    = singleQuote . safeSQL
   safeSQL :: a -> a
 
@@ -85,6 +223,9 @@ class (IsString a, Monoid a) => SafeText a where
   safePHPString     = doubleQuote . safePHP
   safePHP :: a -> a
 
+  safeADLString     :: a -> a
+  safeADLString     = doubleQuote . safeADL
+  safeADL :: a -> a
 
 instance SafeText Text.Text where
   safeSQL str = 
@@ -93,15 +234,24 @@ instance SafeText Text.Text where
       Just (c , cs) 
         | c == '\'' -> "''" <> safeSQL cs
         | c == '\"' -> "\"" <> safeSQL cs
+        | c == '\\' -> "\\" <> safeSQL cs
         | otherwise -> c `Text.cons` safeSQL cs
   safePHP str = 
     case Text.uncons str of
       Nothing -> Text.empty
       Just (c , cs) 
         | c == '\"' -> "\\\"" <> safePHP cs
-        | c == '\\' -> "\\" <> safePHP cs
+        | c == '\\' -> "\\\\" <> safePHP cs
         | otherwise -> c `Text.cons` safePHP cs
-  
+  safeADL str =
+    case Text.uncons str of
+      Nothing -> Text.empty
+      Just (c , cs)
+        | c == '\'' -> "\'" <> safeADL cs
+        | c == '\"' -> "\"" <> safeADL cs
+        | c == '\\' -> "\\" <> safeADL cs
+        | otherwise -> c `Text.cons` safeADL cs
+
 instance SafeText String where
   safeSQL str = 
     case str of
@@ -109,6 +259,7 @@ instance SafeText String where
       (c:cs) 
         | c == '\'' -> "''" <> safeSQL cs
         | c == '\"' -> "\"" <> safeSQL cs
+        | c == '\\' -> "\\" <> safeSQL cs
         | otherwise -> c : safeSQL cs
   safePHP str = 
     case str of
@@ -117,3 +268,19 @@ instance SafeText String where
         | c == '\"' -> "\\\"" <> safePHP cs
         | c == '\\' -> "\\" <> safePHP cs
         | otherwise -> c : safePHP cs
+  safeADL str =
+    case str of
+      [] -> []
+      (c:cs) 
+        | c == '\'' -> "\'" <> safeADL cs
+        | c == '\"' -> "\"" <> safeADL cs
+        | c == '\\' -> "\\" <> safeADL cs
+        | otherwise -> c : safeADL cs
+
+ -}
+
+sqlLiteral :: SQLText -> SQLText
+sqlLiteral (SQLText txt) = SQLText (singleQuote txt)
+
+sqlObjectName :: SQLText -> SQLText
+sqlObjectName (SQLText txt) = SQLText (doubleQuote txt)

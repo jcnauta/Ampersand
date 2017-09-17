@@ -474,13 +474,24 @@ toADLTxt val =
 toSQLTxt :: AAtomValue -> SQLText
 toSQLTxt val =
   case val of
+<<<<<<< refs/remotes/origin/feature/quoting
+   AAVString{}  ->       aavstr val
+   AAVInteger{} -> show (aavint val)
+   AAVBoolean{} -> show (aavbool val)
+   AAVDate{}    -> showGregorian (aadateDay val)
+   AAVDateTime {} -> DTF.formatTime DTF.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
+   AAVFloat{}   -> show (aavflt val)
+   AtomValueOfONE{} -> "1"
+
+=======
    AAVString{}      -> fromHaskellText . singleQuote $ aavtxt val
    AAVInteger{}     -> fromHaskellText . Text.pack . show $ aavint val
    AAVBoolean{}     -> fromHaskellText . Text.pack $ if aavbool val then "true" else "false"
    AAVDate{}        -> fromHaskellText . Text.pack . showGregorian $ aadateDay val
    AAVDateTime{}    -> fromHaskellText . Text.pack . show $ DTF.formatTime DTF.defaultTimeLocale "%FT%T%QZ" (aadatetime val)
    AAVFloat{}       -> fromHaskellText . Text.pack . show $ aavflt val
-   AtomValueOfONE{} -> fromHaskellText "1"
+   AtomValueOfONE{} -> fromHaskellText "ONE"
+>>>>>>> WIP, calling typechecker to the rescue for quoting problem.
 data ExplObj = ExplConceptDef ConceptDef
              | ExplRelation Relation
              | ExplRule String

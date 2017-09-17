@@ -1,17 +1,24 @@
 {-# LANGUAGE FlexibleInstances,DuplicateRecordFields,OverloadedLabels #-}
-module Ampersand.FSpec.ShowHS (ShowHS(..),ShowHSName(..),fSpec2Haskell,haskellIdentifier) where
-import Ampersand.Core.ParseTree
-import Ampersand.Core.AbstractSyntaxTree
-import Text.Pandoc hiding (Meta)
-import Data.Char                  (isAlphaNum)
+module Ampersand.FSpec.ShowHS 
+     ( ShowHS(..)
+     , ShowHSName(..)
+     ,fSpec2Haskell
+     ,haskellIdentifier
+     )
+where
+
 import Ampersand.Basics hiding (indent)
+import Ampersand.Core.AbstractSyntaxTree
+import Ampersand.Core.ParseTree
+import Ampersand.Core.ShowAStruct  (showA,AStruct(..))  -- for traceability, we generate comments in the Haskell code.
 import Ampersand.FSpec.FSpec
-import Ampersand.Core.ShowAStruct  (AStruct(..))  -- for traceability, we generate comments in the Haskell code.
-import Data.List
 import Ampersand.Misc
-import Data.Hashable
-import Data.Ord
+import Data.Char                  (isAlphaNum)
 import Data.Function
+import Data.Hashable
+import Data.List
+import Data.Ord
+import Text.Pandoc hiding (Meta)
 
 fSpec2Haskell :: FSpec -> String
 fSpec2Haskell fSpec
@@ -282,8 +289,7 @@ instance ShowHS FSpec where
               showAtomsOfConcept c =
                            "-- atoms: [ "++ intercalate indentC strs++"]"
                   where
-                    strs = map showVal (sort (atomsInCptIncludingSmaller fSpec c))
-                      where showVal val= "`"++showValADL val++"`" 
+                    strs = map showA (sort (atomsInCptIncludingSmaller fSpec c))
                     indentC = if sum (map length strs) > 300
                               then indent ++ "    --        , "
                               else ", "
@@ -291,7 +297,7 @@ instance ShowHS FSpec where
               showViolatedRule indent' (r,ps)
                  = intercalate indent'
                      [        " ( "++showHSName r++" -- This is "++(if isSignal r then "a process rule." else "an invariant")++
-                      indent'++" , "++ wrap "" (indent'++"   ") (let showPair _ p = "( "++ (show.showValADL.apLeft) p++", "++(show.showValADL.apRight) p++")"
+                      indent'++" , "++ wrap "" (indent'++"   ") (let showPair _ p = "( "++ (showA . apLeft) p++", "++(showA . apRight) p++")"
                                                                    in showPair) ps++
                       indent'++" )"
                      ]

@@ -5,24 +5,18 @@ module Ampersand.Prototype.ProtoUtil
          , copyDirRecursively, copyDeepFile, removeAllDirectoryFiles, getProperDirectoryContents
          , escapeIdentifier,commentBlock,strReplace
          , indentBlock,addToLast
-         , indentBlockBetween--,quote
-         , showValPHP,phpIndent,showPhpStr,escapePhpStr,showPhpBool, showPhpMaybeBool
          , installComposerLibs
          ) where
  
 import Prelude hiding (putStrLn, readFile, writeFile)
 import Data.Monoid
 import Data.List
-import qualified Data.Text as Text
 import System.Directory
 import System.FilePath
 import Ampersand.Basics
 import Ampersand.Misc
 import qualified System.Exit as SE (ExitCode(..))
 import System.Process
-import Ampersand.Core.AbstractSyntaxTree
-     ( showValPHP
-     )
 
 getGenericsDir :: Options -> String
 getGenericsDir opts = 
@@ -111,18 +105,6 @@ commentBlock ls = ["/*"<>replicate lnth '*'<>"*\\"]
 indentBlock :: Int -> [String] -> [String]
 indentBlock i = map (replicate i ' ' <>)
 
--- | will put the block after the first string, and put the second after the block
--- | If the block is just 1 line, indentBlockBetween will return just 1 line as well
-indentBlockBetween :: Text.Text -- ^ precedes the block
-                   -> Text.Text -- ^ comes at the end of the block
-                   -> [Text.Text] -- ^ the block itself, (will be indented)
-                   -> Text.Text -- ^ result
-indentBlockBetween pre post [] = pre<>post
-indentBlockBetween pre post [s] = pre<>s<>post
-indentBlockBetween pre post block
- = Text.intercalate (phpIndent (Text.length pre)) ((pre<>head block):(init rest<>[last rest<>post]))
- where  rest = tail block
-
 strReplace :: String -> String -> String -> String
 strReplace _ _ "" = ""
 strReplace "" _ str = str
@@ -135,35 +117,10 @@ strReplace src dst inp
           | src `isPrefixOf` st = dst <> process (drop n st)
           | otherwise           = c:process cs
 
-phpIndent :: Int -> Text.Text
-phpIndent i
- | i < 0     = Text.pack " " --space instead of \n
- | otherwise = Text.pack $ '\n':replicate i ' '
-
 
 addToLast :: [a] -> [[a]] -> [[a]]
 addToLast _ [] = fatal "addToLast: empty list"
 addToLast s as = init as<>[last as<>s]
-
-showPhpStr :: Text.Text -> Text.Text
-showPhpStr str = q<>Text.pack (escapePhpStr (Text.unpack str))<>q
-  where q = Text.pack "'"
-
--- NOTE: we assume a single quote php string, so $ and " are not escaped
-escapePhpStr :: String -> String
-escapePhpStr ('\'':s) = "\\'" <> escapePhpStr s
-escapePhpStr ('\\':s) = "\\\\" <> escapePhpStr s
-escapePhpStr (c:s)    = c: escapePhpStr s
-escapePhpStr []       = []
--- todo: escape everything else (unicode, etc)
-
-showPhpBool :: Bool -> String
-showPhpBool b = if b then "true" else "false"
-
-showPhpMaybeBool :: Maybe Bool -> String
-showPhpMaybeBool Nothing = "null"
-showPhpMaybeBool (Just b) = showPhpBool b
-
 
 installComposerLibs :: Options -> IO()
 installComposerLibs opts =

@@ -4,7 +4,7 @@ module Ampersand.Prototype.PHP
          , signalTableSpec
          , sessionTableSpec
          , plug2TableSpec
-         , tableName,attributeNames
+         , quotedTableName,attributeNames
          , createTempDatabase
          , tempDbName
          , tableSpec2Queries
@@ -23,7 +23,6 @@ import System.Process
 import System.IO hiding (hPutStr,hGetContents,putStrLn,readFile,writeFile)
 import System.Directory
 import System.FilePath
-import Ampersand.Prototype.ProtoUtil
 import Ampersand.FSpec.SQL
 import Ampersand.FSpec
 import Ampersand.FSpec.ToFSpec.ADL2Plug(suitableAsKey)
@@ -35,65 +34,79 @@ import Ampersand.Core.ShowAStruct
 
 data TableSpec
   = TableSpec { tsCmnt :: [String]  -- Without leading "// "
-              , tsName :: String
+              , tsName :: ADLText  --without quotes
               , tsflds :: [AttributeSpec]
-              , tsKey  ::  String
+              , tsKey  ::  SQLText
               }
 data AttributeSpec
-  = AttributeSpec { fsname :: String
+  = AttributeSpec { fsname :: SQLText
                   , fstype :: TType
                   , fsIsPrimKey :: Bool
                   , fsDbNull :: Bool
                   }
 
 
-tableName :: TableSpec -> String
-tableName = tsName
-
-attributeNames :: TableSpec -> [String]
+quotedTableName :: TableSpec -> SQLText
+quotedTableName = safeObjectName . safeSQL . tsName
+quotedAttName :: SqlAttribute -> SQLText
+quotedAttName = safeObjectName . toSQL . Text.pack . attName
+safeObjectName :: SQLText -> SQLText
+safeObjectName = doubleQuote
+safeLiteral :: SQLText -> SQLText
+safeLiteral = singleQuote
+attributeNames :: TableSpec -> [SQLText]
 attributeNames = map fsname . tsflds
 
-createTablePHP :: TableSpec -> [Text.Text]
+createTablePHP :: TableSpec -> [PHPText]
 createTablePHP tSpec =
-  map (Text.pack . ("// "<>)) (tsCmnt tSpec) <>
+  map (toPHP . (("// "<>) . Text.pack)) (tsCmnt tSpec) <>
   [-- Drop table if it already exists
-    "if($columns = mysqli_query($DB_link, "<>safePHPString ("SHOW COLUMNS FROM "<>(safeSQLObjectName . Text.pack . tsName $ tSpec))<>")){"
-  , "    mysqli_query($DB_link, "<>safePHPString ("DROP TABLE "<>(safeSQLObjectName . Text.pack . tsName $ tSpec))<>");"
-  , "}"
+    toPHP "if($columns = mysqli_query($DB_link, "<>safePHP (toSQL "SHOW COLUMNS FROM "<>quotedTableName tSpec)<>")){"
+  , toPHP "    mysqli_query($DB_link, "<>safePHP (toSQL "DROP TABLE "<>quotedTableName tSpec)<>");"
+  , toPHP "}"
   ] <>
-  [ "$sql="<>safePHPString (Text.unlines $ createTableSql True tSpec)<>";"
-  , "mysqli_query($DB_link,$sql);" 
-  , "if($err=mysqli_error($DB_link)) {"
-  , "  $error=true; echo $err.'<br />';"
-  , "}"
-  , ""
+  [ toPHP "$sql="<>(safePHP . unlinesT $ createTableSql True tSpec)<>";"
+  , toPHP "mysqli_query($DB_link,$sql);" 
+  , toPHP "if($err=mysqli_error($DB_link)) {"
+  , toPHP "  $error=true; echo $err.'<br />';"
+  , toPHP "}"
+  , toPHP ""
   ]
 
-createTableSql :: Bool -> TableSpec -> [Text.Text]
+commentBlockSQL :: [String] -> [SQLText]
+commentBlockSQL [] = []
+commentBlockSQL xs = map (toSQL . Text.pack) .
+   map (\cmmnt -> "/* "<>cmmnt<> " */") $ [hbar] <> map addSpaces xs <> [hbar]
+  where 
+    hbar = replicate (maximum . map length $ xs) '-'
+    addSpaces str = str <> replicate (length hbar - length str) ' '
+    
+createTableSql :: Bool -> TableSpec -> [SQLText]
 createTableSql withComment tSpec = 
       ( if withComment 
-        then map Text.pack . commentBlockSQL . tsCmnt $ tSpec
+        then commentBlockSQL . tsCmnt $ tSpec
         else mempty
       ) <>
-      [ "CREATE TABLE "<>(safeSQLObjectName . Text.pack . tsName $ tSpec)] <>
-      [ Text.replicate indnt " " <> Text.pack [pref] <> " " <> addColumn att 
-      | (pref, att) <- zip ('(' : repeat ',') (tsflds tSpec)] <>
-      ( if null (tsKey tSpec) 
+      [ toSQL "CREATE TABLE "<>(quotedTableName $ tSpec)] <>
+      [ indnt <> toSQL prefx <> " " <> addColumn att 
+      | (prefx, att) <- zip ("(" : repeat ",") (tsflds tSpec)] <>
+      ( if nullT (tsKey tSpec) 
         then []
-        else [ Text.replicate indnt " " <> ", " <> Text.pack (tsKey tSpec) ]
+        else [ indnt <> toSQL ", " <> (tsKey tSpec) ]
       ) <>
-      [ Text.replicate indnt " " <> ", " <> safeSQLObjectName "ts_insertupdate"<>" TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"]<>
-      [ Text.replicate indnt " " <> ") ENGINE     = InnoDB DEFAULT CHARACTER SET UTF8 COLLATE UTF8_BIN" ]<>
-      [ Text.replicate indnt " " <> ", ROW_FORMAT = DYNAMIC"]<>
-      [ "" ]
+      [ indnt <> toSQL ", " <> safeObjectName "ts_insertupdate"<>toSQL " TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"]<>
+      [ indnt <> toSQL ") ENGINE     = InnoDB DEFAULT CHARACTER SET UTF8 COLLATE UTF8_BIN" ]<>
+      [ indnt <> toSQL ", ROW_FORMAT = DYNAMIC"]<>
+      [ toSQL "" ]
   where
-    indnt = 5
-    addColumn :: AttributeSpec -> Text.Text
+    indnt = toSQL (Text.replicate 5 " ") 
+    addColumn :: AttributeSpec -> SQLText
     addColumn att 
-       =    (safeSQLObjectName . Text.pack . fsname $ att) <> " " 
-         <> (Text.pack . showSQL . fstype $ att) 
-         <> (if fsIsPrimKey att then " UNIQUE" else "")
-         <> (if fsDbNull att then " DEFAULT NULL" else " NOT NULL")
+       =    (safeObjectName . fsname $ att) 
+         <> (toSQL " " )
+         <> (showSQL . fstype $ att) 
+         <> (if fsIsPrimKey att then toSQL " UNIQUE" else mempty)
+         <> (if fsDbNull att then toSQL " DEFAULT NULL" else toSQL " NOT NULL")
 
 plug2TableSpec :: PlugSQL -> TableSpec
 plug2TableSpec plug 
@@ -107,23 +120,24 @@ plug2TableSpec plug
                      , "  "<>(show.properties.attExpr) x ]
                    | x <- plugAttributes plug
                    ]
-     , tsName = name plug
+     , tsName = toADL . Text.pack $ name plug
      , tsflds = map fld2AttributeSpec $ plugAttributes plug
      , tsKey  = case (plug, (head.plugAttributes) plug) of
                  (BinSQL{}, _)   -> if all (suitableAsKey . attType) (plugAttributes plug)
-                                    then "PRIMARY KEY (" 
-                                            <> intercalate ", " (map (show . attName) (plugAttributes plug))
-                                            <> ")"
-                                    else ""
+                                    then (   toSQL "PRIMARY KEY (" 
+                                          <> intercalateT (toSQL ", ") (map quotedAttName (plugAttributes plug))
+                                          <> toSQL ")"
+                                         )
+                                    else mempty
                  (TblSQL{}, primFld) ->
                       case attUse primFld of
-                         PrimaryKey _ -> "PRIMARY KEY (" <> (show . attName) primFld <> ")"
+                         PrimaryKey _ -> toSQL "PRIMARY KEY (" <> quotedAttName primFld <> ")"
                          ForeignKey c -> fatal ("ForeignKey "<>name c<>"not expected here!")
                          PlainAttr    -> ""
      }
 fld2AttributeSpec ::SqlAttribute -> AttributeSpec
 fld2AttributeSpec att 
-  = AttributeSpec { fsname = name att
+  = AttributeSpec { fsname = toSQL . Text.pack $ name att
                   , fstype = attType att
                   , fsIsPrimKey = isPrimaryKey att
                   , fsDbNull = attDBNull att 
@@ -173,12 +187,12 @@ sessionTableSpec =
                              , fsDbNull    = False
                              }
                          ]
-              , tsKey  = "PRIMARY KEY ("<>safeSQLObjectName "SESSION"<>")"
+              , tsKey  = "PRIMARY KEY ("<>safeObjectName "SESSION"<>")"
               }
 
 
 -- evaluate normalized exp in SQL
-evaluateExpSQL :: FSpec -> String -> Expression -> IO [(String,String)]
+evaluateExpSQL :: FSpec -> SQLText -> Expression -> IO [(String,String)]
 evaluateExpSQL fSpec dbNm exp =
   -- verboseLn (getOpts fSpec) ("evaluateExpSQL fSpec "++showA exp)
   -- verboseLn (getOpts fSpec) (intercalate "\n" . showPrf showA . cfProof (getOpts fSpec)) exp
@@ -187,59 +201,66 @@ evaluateExpSQL fSpec dbNm exp =
  where violationsExpr = conjNF (getOpts fSpec) exp
        violationsQuery = prettySQLQuery 26 fSpec violationsExpr
 
-performQuery :: FSpec -> String ->  String -> IO [(String,String)]
-performQuery fSpec dbNm queryStr =
- do { queryResult <- (executePHPStr . showPHP) php
+performQuery :: FSpec -> SQLText -> SQLText -> IO [(String,String)]
+performQuery fSpec dbNm query =
+ do { queryResult <- executePHPText php
     ; if "Error" `isPrefixOf` queryResult -- not the most elegant way, but safe since a correct result will always be a list
-      then do verboseLn opts{verboseP=True} ("\n******Problematic query:\n"<>queryStr<>"\n******")
+      then do verboseLn opts{verboseP=True} ("\n******Problematic query:\n"<>showQuery<>"\n******")
               fatal ("PHP/SQL problem: "<>queryResult)
       else case reads queryResult of
              [(pairs,"")] -> return pairs
              _            -> fatal (  "Parse error on php result: \n"
                                     <>(unlines . indent 5 . lines $ queryResult)
                                     <>"\nOriginal query:\n"
-                                    <>(unlines . showNumbered . lines $ queryStr)
+                                    <>showQuery
                                    )
     } 
    where
+    showQuery = unlines . showNumbered . lines . Text.unpack . toHaskellText $ query
     showNumbered :: [String] -> [String]
     showNumbered xs = map makeLine (zip [1::Int  ..] xs)
       where makeLine (nr, str) = "/*"<>show nr<>"*/"<>str
     opts = getOpts fSpec
-    php :: [Text.Text]
+    php :: [PHPText]
     php =
       connectToMySqlServerPHP opts (Just dbNm) <>
-      [ "$sql="<>(safePHPString . Text.pack $ queryStr)<>";"
-      , "$result=mysqli_query($DB_link,$sql);"
-      , "if(!$result)"
-      , "  die('Error : Connect to server failed'.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
-      , "$rows=Array();"
-      , "  while ($row = mysqli_fetch_array($result)) {"
-      , "    $rows[]=$row;"
-      , "    unset($row);"
-      , "  }"
-      , "echo '[';"
-      , "for ($i = 0; $i < count($rows); $i++) {"
-      , "  if ($i==0) echo ''; else echo ',';"
-      , "  echo '(\"'.addslashes($rows[$i]['src']).'\", \"'.addslashes($rows[$i]['tgt']).'\")';"
-      , "}"
-      , "echo ']';"
+      [ toPHP "$sql="<>doubleQuote (safePHP query)<>";"
+      , toPHP "$result=mysqli_query($DB_link,$sql);"
+      , toPHP "if(!$result)"
+      , toPHP "  die('Error : Connect to server failed'.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
+      , toPHP "$rows=Array();"
+      , toPHP "  while ($row = mysqli_fetch_array($result)) {"
+      , toPHP "    $rows[]=$row;"
+      , toPHP "    unset($row);"
+      , toPHP "  }"
+      , toPHP "echo '[';"
+      , toPHP "for ($i = 0; $i < count($rows); $i++) {"
+      , toPHP "  if ($i==0) echo ''; else echo ',';"
+      , toPHP "  echo '(\"'.addslashes($rows[$i]['src']).'\", \"'.addslashes($rows[$i]['tgt']).'\")';"
+      , toPHP "}"
+      , toPHP "echo ']';"
       ]
 
 -- call the command-line php with phpStr as input
-executePHPStr :: Text.Text -> IO String
-executePHPStr phpStr =
+executePHPText :: [PHPText] -> IO String
+executePHPText phpStr =
  do { tempdir <- catch getTemporaryDirectory
                        (\e -> do let err = show (e :: IOException)
                                  hPutStr stderr ("Warning: Couldn't find temp directory. Using current directory : " <> err)
                                  return ".")
     ; (tempPhpFile, temph) <- openTempFile tempdir "tmpPhpQueryOfAmpersand.php"
-    ; Text.hPutStr temph phpStr
+    ; Text.hPutStr temph (showPHP phpStr)
     ; hClose temph
-    ; results <- executePHP tempPhpFile
+    ; results <- executePHPFile tempPhpFile
   --  ; removeFile tempPhpFile
     ; return (normalizeNewLines results)
     }
+  where
+    showPHP :: [PHPText] -> Text.Text
+    showPHP phpLines = Text.unlines $ ["<?php"]<>map toHaskellText phpLines<>["?>"]
+
+
+
 normalizeNewLines :: String -> String
 normalizeNewLines = f . intercalate "\n" . lines
   where 
@@ -247,8 +268,8 @@ normalizeNewLines = f . intercalate "\n" . lines
     f ('\r':'\n':rest) = '\n':f rest
     f (c:cs) = c: f cs 
 
-executePHP :: String -> IO String
-executePHP phpPath =
+executePHPFile :: String -> IO String
+executePHPFile phpPath =
  do { let cp = (shell command) 
                    { cwd = Just (takeDirectory phpPath)
                    }
@@ -261,60 +282,56 @@ executePHP phpPath =
     ; return result
     }
 
-showPHP :: [Text.Text] -> Text.Text
-showPHP phpLines = Text.unlines $ ["<?php"]<>phpLines<>["?>"]
+tempDbName :: Options -> SQLText
+tempDbName opts = fromHaskellText . Text.pack $ "TempDB_"<>dbName opts
 
-
-tempDbName :: Options -> String
-tempDbName opts = "TempDB_"<>dbName opts
-
-connectToMySqlServerPHP :: Options -> Maybe String-> [Text.Text]
+connectToMySqlServerPHP :: Options -> Maybe SQLText-> [PHPText]
 connectToMySqlServerPHP opts mDbName =
-    [ "// Try to connect to the MySQL server"
-    , "global $DB_host,$DB_user,$DB_pass;"
-    , "$DB_host="<>Text.pack (safePHPString (sqlHost  opts))<>";"
-    , "$DB_user="<>Text.pack (safePHPString (sqlLogin opts))<>";"
-    , "$DB_pass="<>Text.pack (safePHPString (sqlPwd   opts))<>";"
-    , ""
+    [ toPHP "// Try to connect to the MySQL server"
+    , toPHP "global $DB_host,$DB_user,$DB_pass;"
+    , toPHP "$DB_host="<>(toPHP . Text.pack . sqlHost  $ opts)<>";"
+    , toPHP "$DB_user="<>(toPHP . Text.pack . sqlLogin $ opts)<>";"
+    , toPHP "$DB_pass="<>(toPHP . Text.pack . sqlPwd   $ opts)<>";"
+    , toPHP ""
     ]<>
     (case mDbName of
        Nothing   ->
-         [ "$DB_link = mysqli_connect($DB_host,$DB_user,$DB_pass);"
-         , "// Check connection"
-         , "if (mysqli_connect_errno()) {"
-         , "  die('Failed to connect to MySQL: ' . mysqli_connect_error());"
-         , "}"
-         , ""
+         [ toPHP "$DB_link = mysqli_connect($DB_host,$DB_user,$DB_pass);"
+         , toPHP "// Check connection"
+         , toPHP "if (mysqli_connect_errno()) {"
+         , toPHP "  die('Failed to connect to MySQL: ' . mysqli_connect_error());"
+         , toPHP "}"
+         , toPHP ""
          ]
        Just dbNm ->
-         ["$DB_name="<>Text.pack (safePHPString dbNm)<>";"]<>
+         [toPHP "$DB_name="<>doubleQuote (safePHP dbNm)<>toPHP ";"]<>
          connectToTheDatabasePHP
     )
 
-connectToTheDatabasePHP :: [Text.Text]
+connectToTheDatabasePHP :: [PHPText]
 connectToTheDatabasePHP =
-    [ "// Connect to the database"
-    , "$DB_link = mysqli_connect($DB_host,$DB_user,$DB_pass,$DB_name);"
-    , "// Check connection"
-    , "if (mysqli_connect_errno()) {"
-    , "  die('Error : Failed to connect to the database: ' . mysqli_connect_error());"
-    , "  }"
-    , ""
+    [ toPHP "// Connect to the database"
+    , toPHP "$DB_link = mysqli_connect($DB_host,$DB_user,$DB_pass,$DB_name);"
+    , toPHP "// Check connection"
+    , toPHP "if (mysqli_connect_errno()) {"
+    , toPHP "  die('Error : Failed to connect to the database: ' . mysqli_connect_error());"
+    , toPHP "  }"
+    , toPHP ""
     ]<>
-    [ "$sql="<>safePHPString("SET SESSION sql_mode = "<>safeSQLObjectName "ANSI,TRADITIONAL") <>";"
+    [ toPHP "$sql="<>safePHPString(toSQL "SET SESSION sql_mode = "<>safeObjectName "ANSI,TRADITIONAL") <>";"
                                                             -- ANSI because of the syntax of the generated SQL
                                                             -- TRADITIONAL because of some more safety
-    , "if (!mysqli_query($DB_link,$sql)) {"
-    , "  die('Error setting sql_mode: ' . mysqli_error($DB_link));"
-    , "  }"
-    , ""
+    , toPHP "if (!mysqli_query($DB_link,$sql)) {"
+    , toPHP "  die('Error setting sql_mode: ' . mysqli_error($DB_link));"
+    , toPHP "  }"
+    , toPHP ""
     ]
-
+safePHPString :: SQLText -> PHPText
+safePHPString = doubleQuote . safePHP
 createTempDatabase :: FSpec -> IO ()
 createTempDatabase fSpec =
  do { --dump ">>>INPUT>>>" (Text.lines $ showPHP phpStr) 
-    ; result <- executePHPStr .
-           showPHP $ phpStr
+    ; result <- executePHPText phpStr
     ; --dump "<<<OUTPUT<<<" (Text.lines . Text.pack $ result)
     ; verboseLn (getOpts fSpec) 
          (if null result 
@@ -331,51 +348,51 @@ createTempDatabase fSpec =
 --      aap (i,x) = prefix <> " "<>(show i)<>" "<>Text.unpack x
 
 
-  phpStr :: [Text.Text]
+  phpStr :: [PHPText]
   phpStr = 
     connectToMySqlServerPHP (getOpts fSpec) Nothing <>
-    [ "/*** Set global varables to ensure the correct working of MySQL with Ampersand ***/"
-    , ""
-    , "    /* file_per_table is required for long columns */"
-    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_file_per_table = true"))<>";"
-    , "    $result=mysqli_query($DB_link, $sql);"
-    , "       if(!$result)"
-    , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
-    , "" 
-    , "    /* file_format = Barracuda is required for long columns */"
-    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_file_format = "<>safeSQLLiteral "Barracuda"))<>";"
-    , "    $result=mysqli_query($DB_link, $sql);"
-    , "       if(!$result)"
-    , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
-    , ""
-    , "    /* large_prefix gives max single-column indices of 3072 bytes = win! */"
-    , "    $sql="<>Text.pack (safePHPString("SET GLOBAL innodb_large_prefix = true"))<>";"
-    , "    $result=mysqli_query($DB_link, $sql);"
-    , "       if(!$result)"
-    , "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
-    , ""
+    [ toPHP "/*** Set global varables to ensure the correct working of MySQL with Ampersand ***/"
+    , toPHP ""
+    , toPHP "    /* file_per_table is required for long columns */"
+    , toPHP "    $sql="<>safePHPString(toSQL "SET GLOBAL innodb_file_per_table = true")<>";"
+    , toPHP "    $result=mysqli_query($DB_link, $sql);"
+    , toPHP "       if(!$result)"
+    , toPHP "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
+    , toPHP "" 
+    , toPHP "    /* file_format = Barracuda is required for long columns */"
+    , toPHP "    $sql="<>safePHPString(toSQL "SET GLOBAL innodb_file_format = "<>safeLiteral "Barracuda")<>";"
+    , toPHP "    $result=mysqli_query($DB_link, $sql);"
+    , toPHP "       if(!$result)"
+    , toPHP "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
+    , toPHP ""
+    , toPHP "    /* large_prefix gives max single-column indices of 3072 bytes = win! */"
+    , toPHP "    $sql="<>safePHPString(toSQL "SET GLOBAL innodb_large_prefix = true")<>";"
+    , toPHP "    $result=mysqli_query($DB_link, $sql);"
+    , toPHP "       if(!$result)"
+    , toPHP "         die('Error '.($ernr=mysqli_errno($DB_link)).': '.mysqli_error($DB_link).'(Sql: $sql)');"
+    , toPHP ""
     ]<> 
-    [ "$DB_name="<>Text.pack (safePHPString (tempDbName (getOpts fSpec)))<>";"
-    , "// Drop the database if it exists"
-    , "$sql="<>Text.pack (safePHPString "DROP DATABASE $DB_name"<>";")
-    , "mysqli_query($DB_link,$sql);"
-    , "// Don't bother about the error if the database didn't exist..."
-    , ""
-    , "// Create the database"
-    , "$sql="<>Text.pack (safePHPString("CREATE DATABASE $DB_name DEFAULT CHARACTER SET UTF8 COLLATE utf8_bin"))<>";"
-    , "if (!mysqli_query($DB_link,$sql)) {"
-    , "  die('Error creating the database: ' . mysqli_error($DB_link));"
-    , "  }"
-    , ""
-    ] <> 
+    [ toPHP "$DB_name="<>safePHPString (tempDbName (getOpts fSpec))<>";"
+    , toPHP "// Drop the database if it exists"
+    , toPHP "$sql="<>safePHPString(toSQL "DROP DATABASE $DB_name"<>";")
+    , toPHP "mysqli_query($DB_link,$sql);"
+    , toPHP "// Don't bother about the error if the database didn't exist..."
+    , toPHP ""
+    , toPHP "// Create the database"
+    , toPHP "$sql="<>safePHPString(toSQL "CREATE DATABASE $DB_name DEFAULT CHARACTER SET UTF8 COLLATE utf8_bin")<>";"
+    , toPHP "if (!mysqli_query($DB_link,$sql)) {"
+    , toPHP "  die('Error creating the database: ' . mysqli_error($DB_link));"
+    , toPHP "  }"
+    , toPHP ""
+    ] <>
     connectToTheDatabasePHP <>       
-    [ "/*** Create new SQL tables ***/"
-    , ""
+    [ toPHP "/*** Create new SQL tables ***/"
+    , toPHP ""
     ] <>
     createTablePHP signalTableSpec <>
     createTablePHP sessionTableSpec <>
-    [ ""
-    , "//// Number of plugs: " <> Text.pack (show (length (plugInfos fSpec)))
+    [ toPHP ""
+    , toPHP "//// Number of plugs: " <> (fromHaskellText . Text.pack . show . length . plugInfos $ fSpec)
     ]
     -- Create all plugs
     <> concat [createTablePHP . plug2TableSpec $ p | InternalPlug p <- plugInfos fSpec]
@@ -383,54 +400,57 @@ createTempDatabase fSpec =
     <> concat [populatePlugPHP p | InternalPlug p <- plugInfos fSpec]
   
     where
-      populatePlugPHP :: PlugSQL -> [Text.Text]
+      populatePlugPHP :: PlugSQL -> [PHPText]
       populatePlugPHP plug =
         case tableContents fSpec plug of
           [] -> []
           tblRecords 
-             -> [ "$sqlQuery="<>
-                         safePHPString ( "INSERT INTO "<>(safeSQLObjectName . Text.pack . name $ plug)
-                                       <>" ("<>Text.intercalate "," (map (safeSQLObjectName . Text.pack . attName) (plugAttributes plug))<>")"
-                                       <>phpIndent 14<>"VALUES " <> Text.intercalate (phpIndent 19<>", ") [ "(" <>valuechain md<> ")" | md<-tblRecords]
-                                       <>phpIndent 10
+             -> [ toPHP "$sqlQuery="<>
+                         safePHPString ( toSQL "INSERT INTO "<>(safeObjectName . toSQL . Text.pack . name $ plug)
+                                       <>toSQL " ("<>intercalateT (toSQL ",") (map quotedAttName (plugAttributes plug))<>toSQL ")"
+                                       <>indnt 14<>toSQL "VALUES " <> intercalateT (indnt 19<>toSQL ", ") [ toSQL "(" <>valuechain md<>toSQL ")" | md<-tblRecords]
+                                       <>indnt 10
                                        )<>";"
-                , "mysqli_query($DB_link,$sqlQuery);"
-                , "if($err=mysqli_error($DB_link)) { $error=true; echo $err.'<br />'; }"
+                , toPHP "mysqli_query($DB_link,$sqlQuery);"
+                , toPHP "if($err=mysqli_error($DB_link)) { $error=true; echo $err.'<br />'; }"
                 ]
        where
-        valuechain :: [Maybe AAtomValue] -> Text.Text
+        indnt :: Int -> SQLText
+        indnt i =
+         toSQL . Text.pack $ '\n':replicate i ' '
+        valuechain :: [Maybe AAtomValue] -> SQLText
         valuechain record = 
-           Text.intercalate ", " 
+           intercalateT ", " 
              [case att of 
-                 Nothing  -> "NULL" 
-                 Just val -> Text.pack . showValSQL $ val 
+                 Nothing  -> toSQL "NULL" 
+                 Just val -> toSQLTxt val 
              | att<-record
              ]
 
 
 -- *** MySQL stuff below:
 
-data SqlQuery = SqlQuery [Text.Text]
+data SqlQuery = SqlQuery [SQLText]
 
 tableSpec2Queries :: Bool -> TableSpec -> [SqlQuery]
 tableSpec2Queries withComment tSpec = 
  (SqlQuery $ createTableSql withComment tSpec
  ):
- [SqlQuery [ Text.pack $ "CREATE INDEX "<> safeSQLObjectName (tsName tSpec<>"_"<>fsname fld)
-                             <>" ON "<>safeSQLObjectName (tsName tSpec)
-                             <>" ("<>safeSQLObjectName (fsname fld)<>")"
+ [SqlQuery [    toSQL "CREATE INDEX "<> safeObjectName (quotedTableName tSpec<>"_"<>fsname att)
+             <> toSQL " ON "<>quotedTableName tSpec
+             <> toSQL " ("<>doubleQuote (fsname att)<>toSQL ")"
            ]
- | fld <- tsflds tSpec
- , not (fsIsPrimKey fld)
- , suitableAsKey (fstype  fld)
+ | att <- tsflds tSpec
+ , not (fsIsPrimKey att)
+ , suitableAsKey (fstype  att)
  ]
 
 additionalDatabaseSettings :: [SqlQuery]
 additionalDatabaseSettings = [ SqlQuery ["SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"]]
 
-sqlQuery2Text :: Bool -> SqlQuery -> Text.Text
+sqlQuery2Text :: Bool -> SqlQuery -> SQLText
 sqlQuery2Text withComment (SqlQuery ts)
    = if withComment 
-     then Text.unlines ts <>";"
-     else Text.unwords . Text.words . Text.unlines $ ts
+     then unlinesT ts <>";"
+     else unwordsT . wordsT . unlinesT $ ts
 

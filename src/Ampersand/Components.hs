@@ -207,7 +207,7 @@ generateAmpersandOutput multi = do
                             ; putStrLn $ showContents ruleComplement
                             }
            where showContents rule = "[" ++ intercalate ", " pairs ++ "]"
-                   where pairs = [ "("++(show.showValADL.apLeft) v++"," ++(show.showValADL.apRight) v++")" 
+                   where pairs = [ "("++(show.toADLTxt.apLeft) v++"," ++(show.toADLTxt.apRight) v++")" 
                                  | (r,vs) <- allViolations fSpec, r == rule, v <- vs]
                                
    

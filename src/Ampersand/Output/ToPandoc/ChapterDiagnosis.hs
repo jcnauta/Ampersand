@@ -437,10 +437,10 @@ chpDiagnosis fSpec
       oneviol r p
        = if source r==target r && apLeft p==apRight p
          then singleQuoted (  (str.name.source) r 
-                            <>(str.showValADL.apLeft) p
+                            <>(str.toADLTxt.apLeft) p
                            )
-         else    "("  <> (str.name.source) r <> (str.showValADL.apLeft) p 
-              <> ", " <> (str.name.target) r <> (str.showValADL.apRight) p
+         else    "("  <> (str.name.source) r <> (str.toADLTxt.apLeft) p 
+              <> ", " <> (str.name.target) r <> (str.toADLTxt.apRight) p
               <> ")"
       popwork :: [(Rule,[AAtomPair])]
       popwork = [(r,ps) | (r,ps) <- allViolations fSpec, isSignal r, inScopeRule r]
@@ -490,8 +490,8 @@ chpDiagnosis fSpec
                         ,(para.strong.text.name.target.formalExpression) r
                         ]
                         -- Rows:
-                        [ [(para.text.showValADL.apLeft) p
-                          ,(para.text.showValADL.apRight) p
+                        [ [(para.text.toADLTxt.apLeft) p
+                          ,(para.text.toADLTxt.apRight) p
                           ]
                         | p<- ps]
 
@@ -507,7 +507,7 @@ chpDiagnosis fSpec
                    -- Header:
                    [(plain.str.name.source) r]
                    -- Data rows:
-                   [ [(plain.str.showValADL.apLeft) p]
+                   [ [(plain.str.toADLTxt.apLeft) p]
                    | p <-take 10 ps --max 10 rows
                    ]
         else table -- No caption:
@@ -517,7 +517,7 @@ chpDiagnosis fSpec
                    -- Header:
                    [(plain.str.name.source) r , (plain.str.name.target) r ]
                    -- Data rows:
-                   [ [(plain.str.showValADL.apLeft) p,(plain.str.showValADL.apRight) p]
+                   [ [(plain.str.toADLTxt.apLeft) p,(plain.str.toADLTxt.apRight) p]
                    | p <-take 10 ps --max 10 rows
                    ]
 

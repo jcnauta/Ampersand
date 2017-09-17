@@ -249,8 +249,8 @@ chpNatLangReqs lev fSpec =
                      <> (if null prR then mempty
                          else " " <> pragmaShow prR)
                      <> "."
-   where srcAtom = showValADL (apLeft pair)
-         tgtAtom = showValADL (apRight pair)
+   where srcAtom = toADLTxt (apLeft pair)
+         tgtAtom = toADLTxt (apRight pair)
          prL = decprL decl
          prM = decprM decl
          prR = decprR decl
