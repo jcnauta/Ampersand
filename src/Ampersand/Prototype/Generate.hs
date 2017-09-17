@@ -13,7 +13,7 @@ import qualified Data.Text as Text
 import Prelude hiding (writeFile,readFile,getContents,exp)
 
 
-generateDBstructQueries :: FSpec -> Bool -> [Text.Text]
+generateDBstructQueries :: FSpec -> Bool -> [SQLText]
 generateDBstructQueries fSpec withComment = 
    map (sqlQuery2Text withComment) $ generateDBstructQueries' fSpec withComment
 
@@ -25,35 +25,35 @@ generateDBstructQueries' fSpec withComment
                  : [plug2TableSpec p | InternalPlug p <- plugInfos fSpec]
                  )
     <> additionalDatabaseSettings 
-generateInitialPopQueries :: FSpec -> [Text.Text]
+generateInitialPopQueries :: FSpec -> [SQLText]
 generateInitialPopQueries fSpec 
   = fillSignalTable (initialConjunctSignals fSpec) <>
     populateTablesWithPops False fSpec
   where
-    fillSignalTable :: [(Conjunct, [AAtomPair])] -> [Text.Text]
-    fillSignalTable [] = []
+    fillSignalTable :: [(Conjunct, [AAtomPair])] -> [SQLText]
+    fillSignalTable [] = mempty
     fillSignalTable conjSignals 
-     = [Text.unlines
-            [ "INSERT INTO "<>(safeSQLObjectName . Text.pack . tableName $ signalTableSpec)
-            , "   ("<>Text.intercalate ", " (map (safeSQLObjectName . Text.pack) (attributeNames signalTableSpec))<>")"
-            , "VALUES " <> Text.intercalate " , " 
-                  [ "(" <>Text.intercalate ", " [(Text.pack . safeSQLLiteral . rc_id $ conj)
-                                                ,(Text.pack . safeSQLLiteral . showValSQL . apLeft  $ p)
-                                                ,(Text.pack . safeSQLLiteral . showValSQL . apRight $ p)
-                                                ]<> ")" 
+     = [unlinesT
+            [ toSQL "INSERT INTO "<>(quotedTableName signalTableSpec)
+            , toSQL "   ("<>intercalateT (toSQL ", ") (map sqlObjectName (attributeNames signalTableSpec))<>")"
+            , toSQL "VALUES " <> intercalateT (toSQL " , ") 
+                  [ "(" <>intercalateT (toSQL ", ") [(sqlLiteral . toSQL . Text.pack . rc_id $ conj)
+                                                    ,(sqlLiteral . toSQLTxt . apLeft  $ p)
+                                                    ,(sqlLiteral . toSQLTxt . apRight $ p)
+                                                    ]<> ")" 
                   | (conj, viols) <- conjSignals
                   , p <- viols
                   ]
             ]
        ]
-generateMetaPopQueries :: FSpec -> [Text.Text]
+generateMetaPopQueries :: FSpec -> [SQLText]
 generateMetaPopQueries = populateTablesWithPops True
 
-populateTablesWithPops :: Bool -> FSpec -> [Text.Text]
+populateTablesWithPops :: Bool -> FSpec -> [SQLText]
 populateTablesWithPops ignoreDoubles fSpec =
       concatMap populatePlug [p | InternalPlug p <- plugInfos fSpec]
       where
-        populatePlug :: PlugSQL -> [Text.Text]
+        populatePlug :: PlugSQL -> [SQLText]
         populatePlug plug = map insertRecord . tableContents fSpec $ plug 
           -- = case tableContents fSpec plug of
           --    []  -> []
@@ -67,17 +67,20 @@ populateTablesWithPops ignoreDoubles fSpec =
           --              ]
           --           ]
          where
+           insertRecord :: [Maybe AAtomValue] -> SQLText
            insertRecord md = 
-                Text.unlines
-                  [ "INSERT "<> (if ignoreDoubles then "IGNORE " else "") <>"INTO "
-                        <>Text.pack (show (name plug))
-                  , "   ("<>Text.intercalate ", " (map (safeSQLObjectName . Text.pack . attName) (plugAttributes plug))<>") "
+                unlinesT
+                  [ toSQL "INSERT "<> (if ignoreDoubles then toSQL "IGNORE " else mempty) <>toSQL "INTO "
+                        <>(doubleQuote . safeSQL . tsName . plug2TableSpec $ plug)
+                  , toSQL "   ("<>intercalateT (toSQL ", ") (map quotedAttName (plugAttributes plug))<>") "
                   , "VALUES " <> "(" <>valuechain md<> ")" 
                   ]
-           valuechain record 
-             = Text.intercalate ", " 
-                 [case att of 
-                    Nothing -> "NULL"
-                    Just val -> Text.pack . safeSQLLiteral $ showValSQL val
-                 | att <- record ]
+           valuechain :: [Maybe AAtomValue] -> SQLText
+           valuechain record = 
+              intercalateT ", " 
+                [case att of 
+                    Nothing  -> toSQL "NULL" 
+                    Just val -> toSQLTxt val 
+                | att<-record
+                ]
 

@@ -22,6 +22,7 @@ import Ampersand.FSpec.ToFSpec.NormalForms
 import Ampersand.Misc
 import qualified Ampersand.Misc.Options as Opts
 import Ampersand.Prototype.ProtoUtil
+import qualified Data.Text as Text
 
 {- TODO
 - Converse navInterfaces?
@@ -322,7 +323,7 @@ genViewInterface fSpec interf =
  do { lns <- genViewObject fSpec 0 (_ifcObj interf)
     ; template <- readTemplate fSpec "views/Interface.html"
     ; let contents = renderTemplate template $
-                       setAttribute "contextName"         (safePHPString . fsName $ fSpec)
+                       setAttribute "contextName"         (Text.unpack . fsName $ fSpec)
                      . setAttribute "isTopLevel"          ((name . source . _ifcExp $ interf) `elem` ["ONE", "SESSION"])
                      . setAttribute "roles"               (map show . _ifcRoles $ interf) -- show string, since StringTemplate does not elegantly allow to quote and separate
                      . setAttribute "ampersandVersionStr" ampersandVersionStr

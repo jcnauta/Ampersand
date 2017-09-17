@@ -111,7 +111,10 @@ class (IsString a, Monoid a) => SafeConvert a where
   unlinesT = fromHaskellText . Text.unlines . map toHaskellText
   nullT :: a -> Bool
   nullT = Text.null . toHaskellText
-
+  replicateT :: Int -> a -> a
+  replicateT i = fromHaskellText . Text.replicate i . toHaskellText
+  lengthT :: a -> Int
+  lengthT = Text.length . toHaskellText
 instance SafeConvert SQLText where
   fromHaskellText = SQLText . convertTo SQL
   toHaskellText (SQLText txt) = convertFrom SQL txt

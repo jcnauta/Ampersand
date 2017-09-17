@@ -22,7 +22,8 @@ import System.Directory
 import Data.Time.Clock.POSIX
 import qualified Data.ByteString.Lazy as L
 import Data.List
-import qualified Data.Text.IO as Text
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.Function (on)
 import Data.Maybe (maybeToList)
 import Ampersand.Prototype.WriteStaticFiles   (writeStaticFiles)
@@ -93,7 +94,7 @@ generateAmpersandOutput multi = do
    doGenSQLdump :: IO()
    doGenSQLdump =
     do { verboseLn opts $ "Generating SQL queries dumpfile for "++name fSpec
-       ; Text.writeFile outputFile (dumpSQLqueries multi)
+       ; TextIO.writeFile outputFile (toHaskellText $ dumpSQLqueries multi)
        ; verboseLn opts $ "SQL queries dumpfile written into " ++ outputFile ++ "."
        }
     where outputFile = dirOutput opts </> baseName opts ++ "_dump" -<.> ".sql"
@@ -207,7 +208,11 @@ generateAmpersandOutput multi = do
                             ; putStrLn $ showContents ruleComplement
                             }
            where showContents rule = "[" ++ intercalate ", " pairs ++ "]"
-                   where pairs = [ "("++(show.toADLTxt.apLeft) v++"," ++(show.toADLTxt.apRight) v++")" 
+                   where pairs = [ "("
+                                 ++  (Text.unpack . toHaskellText . toADLTxt . apLeft $ v)
+                                 ++"," 
+                                 ++  (Text.unpack . toHaskellText . toADLTxt . apRight $ v)
+                                 ++")" 
                                  | (r,vs) <- allViolations fSpec, r == rule, v <- vs]
                                
    

@@ -3,9 +3,10 @@
 module Ampersand.Output.ToJSON.Conjuncts 
   (Conjuncts)
 where
+import Ampersand.Core.AbstractSyntaxTree 
 import Ampersand.FSpec.ToFSpec.NormalForms (conjNF)
 import Ampersand.Output.ToJSON.JSONutils 
-import Ampersand.Core.AbstractSyntaxTree 
+import qualified Data.Text as Text
 
 data Conjuncts = Conjuncts [JSONConjunct] deriving (Generic, Show)
 data JSONConjunct = JSONConjunct
@@ -25,7 +26,7 @@ instance JSON Conjunct JSONConjunct where
   { cnjJSONid                  = rc_id conj
   , cnjJSONsignalRuleNames     = map name . filter        isSignal  . rc_orgRules $ conj
   , cnjJSONinvariantRuleNames  = map name . filter (not . isSignal) . rc_orgRules $ conj
-  , cnjJSONviolationsSQL       = sqlQuery fSpec . conjNF (getOpts fSpec) . notCpl . rc_conjunct $ conj
+  , cnjJSONviolationsSQL       = Text.unpack . toHaskellText . sqlQuery fSpec . conjNF (getOpts fSpec) . notCpl . rc_conjunct $ conj
   }
    where 
     fSpec = userFSpec multi

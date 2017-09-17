@@ -1,14 +1,15 @@
 module Ampersand.Prototype.ValidateSQL (validateRulesSQL) where
 
-import Prelude hiding (exp,putStrLn,putStr)
-import Data.List
-import System.IO (hSetBuffering,stdout,BufferMode(NoBuffering))
 import Ampersand.Basics
-import Ampersand.Misc
-import Ampersand.FSpec
 import Ampersand.Core.AbstractSyntaxTree
 import Ampersand.Core.ShowAStruct
 import Ampersand.Prototype.PHP
+import Ampersand.FSpec
+import Ampersand.Misc
+import Data.List
+import qualified Data.Text as Text
+import Prelude hiding (exp,putStrLn,putStr)
+import System.IO (hSetBuffering,stdout,BufferMode(NoBuffering))
 {-
 Validate the generated SQL for all rules in the fSpec, by comparing the evaluation results
 with the results from Haskell-based Ampersand rule evaluator. The latter is much simpler and
@@ -25,7 +26,11 @@ validateRulesSQL fSpec =
     ; verboseLn (getOpts fSpec)  "Initializing temporary database (this could take a while)"
     ; createTempDatabase fSpec
 
-    ; let allExps = allExprs fSpec
+    ; let allExps = getAllInterfaceExps fSpec ++ 
+                    getAllRuleExps fSpec ++ 
+                    getAllPairViewExps fSpec ++ 
+                    getAllIdExps fSpec ++ 
+                    getAllViewExps fSpec
 
     ; verboseLn (getOpts fSpec)  $ "Number of expressions to be validated: "++show (length allExps)
     ; results <- mapM (validateExp fSpec) allExps
@@ -40,8 +45,8 @@ validateRulesSQL fSpec =
 
 stringify :: (Rule,[AAtomPair]) -> (String,[String])
 stringify (rule,pairs) = (name rule, map (f . showPairADL) pairs )
-   where f (a,b) = "( "++a++", "++b++" )"
-showPairADL :: AAtomPair -> (String, String)
+   where f (a,b) = "( "++Text.unpack (toHaskellText a)++", "++Text.unpack (toHaskellText b)++" )"
+showPairADL :: AAtomPair -> (ADLText, ADLText)
 showPairADL pair = (toADLTxt (apLeft pair), toADLTxt (apRight pair))
 
 
@@ -89,7 +94,7 @@ validateExp _  vExp@(EDcD{}, _)   = -- skip all simple relations
 validateExp fSpec vExp@(exp, orig) =
  do { violationsSQL <- evaluateExpSQL fSpec (tempDbName (getOpts fSpec)) exp
     ; let violationsAmp = map showPairADL (pairsInExpr fSpec exp)
-    ; if sort violationsSQL == sort violationsAmp
+    ; if sort (map (over safeADL) violationsSQL) == sort violationsAmp
       then
        do { putStr "."
           ; return (vExp, True)
@@ -101,10 +106,14 @@ validateExp fSpec vExp@(exp, orig) =
           ; putStrLn "Mismatch between SQL and Ampersand"
           ; putStrLn $ showVExp vExp
           ; putStrLn "SQL violations:"
-          ; print violationsSQL
+          ; sequence_ (map putStrLn . sort . map showVA $ violationsSQL)
           ; putStrLn "Ampersand violations:"
-          ; sequence (map putStrLn violationsAmp)
+          ; sequence_ (map putStrLn . sort . map showVA $ violationsAmp)
           ; return (vExp, False)
           }
     }
-
+  where 
+    over :: (a->b) -> (a,a) -> (b,b)
+    over fun (f,s) = (fun f,fun s) 
+    showVA :: SafeConvert a => (a,a) -> String
+    showVA (a,b) = "("++(Text.unpack . toHaskellText $ a)++", "++(Text.unpack . toHaskellText $ b)++")"

@@ -8,6 +8,8 @@ import Ampersand.Output.ToJSON.JSONutils
 import Ampersand.Core.AbstractSyntaxTree 
 import Ampersand.FSpec.ToFSpec.NormalForms
 import Ampersand.FSpec.ToFSpec.Calc
+import Ampersand.FSpec.SQL
+import qualified Data.Text as Text
 
 data Interfaces = Interfaces [JSONInterface] deriving (Generic, Show)
 data JSONInterface = JSONInterface
@@ -105,7 +107,7 @@ instance JSON ObjectDef JSONexpr where
   , exprJSONisUni             = isUni normalizedInterfaceExp
   , exprJSONisTot             = isTot normalizedInterfaceExp
   , exprJSONisIdent           = isIdent normalizedInterfaceExp
-  , exprJSONquery             = query
+  , exprJSONquery             = Text.unpack . toHaskellText $ query
   }
   where
     opts = getOpts fSpec

@@ -9,6 +9,7 @@ import Data.Char hiding (Space)
 import Data.List
 import Data.List.Split(splitOn)
 import Data.Maybe
+import qualified Data.Text as Text
 
 chpNatLangReqs :: Int -> FSpec -> Blocks
 chpNatLangReqs lev fSpec =
@@ -249,8 +250,8 @@ chpNatLangReqs lev fSpec =
                      <> (if null prR then mempty
                          else " " <> pragmaShow prR)
                      <> "."
-   where srcAtom = toADLTxt (apLeft pair)
-         tgtAtom = toADLTxt (apRight pair)
+   where srcAtom = Text.unpack . toHaskellText . toADLTxt $ apLeft pair
+         tgtAtom = Text.unpack . toHaskellText . toADLTxt $ apRight pair
          prL = decprL decl
          prM = decprM decl
          prR = decprR decl

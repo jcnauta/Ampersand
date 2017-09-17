@@ -10,16 +10,15 @@ import Ampersand.Prototype.Generate
 import Ampersand.Core.ShowAStruct
 import Ampersand.FSpec
 import Ampersand.FSpec.SQL
-import Data.Char (isPrint)
 import Data.Monoid
 import qualified Data.Text as Text
 import Ampersand.Core.AbstractSyntaxTree
      ( Relation )
 
-dumpSQLqueries :: MultiFSpecs -> Text.Text
+dumpSQLqueries :: MultiFSpecs -> SQLText
 dumpSQLqueries multi
-   = traceBadChars . Text.unlines $ 
-         header (Text.pack ampersandVersionStr)
+   = unlinesT $ 
+         (header . toSQL . Text.pack $ ampersandVersionStr)
        <>header "Database structure queries"
        <>generateDBstructQueries fSpec True
        <>header "Initial population queries"
@@ -32,63 +31,53 @@ dumpSQLqueries multi
        <>concatMap showInterface (interfaceS fSpec <> interfaceG fSpec)
     
    where
-     traceBadChars :: Text.Text -> Text.Text
-     traceBadChars str = Text.concatMap handleChar str
---       case Text.uncons str of
---         Nothing       -> Text.empty
---         Just (c , cs) -> handleChar c <> traceBadChars cs
-      where
-        handleChar c 
-          | isPrint c = Text.singleton (c)
-          | c=='\n'   = Text.singleton (c)
-          | otherwise = "Error: THIS ->"<>Text.pack (show c)<>"<-IS AN INVALID CHARACTER!"
      fSpec = userFSpec multi
-     showInterface :: Interface -> [Text.Text]
+     showInterface :: Interface -> [SQLText]
      showInterface ifc 
-        = header ("INTERFACE: "<>Text.pack (name ifc))
+        = header ("INTERFACE: "<>(toSQL . Text.pack . name $ ifc))
         <>(map ("  " <>) . showObjDef . ifcObj) ifc
         where 
-          showObjDef :: ObjectDef -> [Text.Text]
+          showObjDef :: ObjectDef -> [SQLText]
           showObjDef obj
-            = (header . Text.pack . showA . objExpression) obj
-            <>[Text.pack$ (prettySQLQueryWithPlaceholder 2 fSpec . objExpression) obj,";"]
+            = (header . toSQL . Text.pack . showA . objExpression) obj
+            <>[(prettySQLQueryWithPlaceholder 2 fSpec . objExpression) obj,";"]
             <>case objmsub obj of
                  Nothing  -> []
                  Just sub -> showSubInterface sub
-            <>header ("Broad query for the object at " <> (Text.pack . show . origin) obj)
-            <>[Text.pack . prettyBroadQueryWithPlaceholder 2 fSpec $ obj,";"]
-          showSubInterface :: SubInterface -> [Text.Text]
+            <>header ("Broad query for the object at " <> (toSQL . Text.pack . show . origin) obj)
+            <>[prettyBroadQueryWithPlaceholder 2 fSpec $ obj,";"]
+          showSubInterface :: SubInterface -> [SQLText]
           showSubInterface sub = 
             case sub of 
               Box{} -> concatMap showObjDef . siObjs $ sub
               InterfaceRef{} -> []
 
-     showConjunct :: Conjunct -> [Text.Text]
+     showConjunct :: Conjunct -> [SQLText]
      showConjunct conj 
-        = header (Text.pack$ rc_id conj)
+        = (header . toSQL . Text.pack . rc_id $ conj)
         <>[sqlCommnt "Rules for this conjunct:"]
         <>map (sqlCommnt . showRule) (rc_orgRules conj)
-        <>[Text.pack$ prettySQLQuery 2 fSpec . conjNF (getOpts fSpec) . notCpl . rc_conjunct $ conj,";"]
+        <>[prettySQLQuery 2 fSpec . conjNF (getOpts fSpec) . notCpl . rc_conjunct $ conj,";"]
         where
           showRule r 
-            = Text.pack ("  - "<>name r<>": "<>showA r)
-     sqlCommnt :: Text.Text -> Text.Text
+            = "  - "<>(toSQL . Text.pack . name $ r)<>": "<>(toSQL . Text.pack . showA $ r)
+     sqlCommnt :: SQLText -> SQLText
      sqlCommnt t = "/* "<>t<>" */"
-     showDecl :: Relation -> [Text.Text]
+     showDecl :: Relation -> [SQLText]
      showDecl decl 
-        = header (Text.pack$ showA decl)
-        <>[Text.pack . prettySQLQuery 2 fSpec $ decl,";"]
-     header :: Text.Text -> [Text.Text]
+        = header (toSQL . Text.pack$ showA decl)
+        <>[prettySQLQuery 2 fSpec $ decl,";"]
+     header :: SQLText -> [SQLText]
      header title = 
          [ ""
-         , "/"<>Text.replicate width "*"<>"/"
+         , "/"<>replicateT width "*"<>"/"
          , "/***"<>spaces firstspaces<>title<>spaces (width-6-firstspaces-l)<>"***/"
-         , "/"<>Text.replicate width "*"<>"/"
+         , "/"<>replicateT width "*"<>"/"
          , ""
          ]
        where width = maximum [80 , l + 8]
-             l = Text.length title
-             spaces :: Int -> Text.Text
-             spaces i = Text.replicate i " "
+             l = lengthT title
+             spaces :: Int -> SQLText
+             spaces i = replicateT i " "
              firstspaces :: Int
              firstspaces = (width - 6 - l) `quot` 2 

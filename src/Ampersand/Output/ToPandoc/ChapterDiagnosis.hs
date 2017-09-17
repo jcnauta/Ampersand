@@ -5,6 +5,7 @@ module Ampersand.Output.ToPandoc.ChapterDiagnosis where
 import Ampersand.Output.ToPandoc.SharedAmongChapters
 import Data.List(nub,partition)
 import Data.Maybe(isJust)
+import qualified Data.Text as Text
 
 chpDiagnosis :: FSpec -> (Blocks,[Picture])
 chpDiagnosis fSpec
@@ -437,10 +438,10 @@ chpDiagnosis fSpec
       oneviol r p
        = if source r==target r && apLeft p==apRight p
          then singleQuoted (  (str.name.source) r 
-                            <>(str.toADLTxt.apLeft) p
+                            <>(str . Text.unpack . toHaskellText . toADLTxt . apLeft) p
                            )
-         else    "("  <> (str.name.source) r <> (str.toADLTxt.apLeft) p 
-              <> ", " <> (str.name.target) r <> (str.toADLTxt.apRight) p
+         else    "("  <> (str.name.source) r <> (str . Text.unpack . toHaskellText . toADLTxt . apLeft) p 
+              <> ", " <> (str.name.target) r <> (str . Text.unpack . toHaskellText . toADLTxt . apRight) p
               <> ")"
       popwork :: [(Rule,[AAtomPair])]
       popwork = [(r,ps) | (r,ps) <- allViolations fSpec, isSignal r, inScopeRule r]
@@ -490,8 +491,8 @@ chpDiagnosis fSpec
                         ,(para.strong.text.name.target.formalExpression) r
                         ]
                         -- Rows:
-                        [ [(para.text.toADLTxt.apLeft) p
-                          ,(para.text.toADLTxt.apRight) p
+                        [ [(para.text. Text.unpack . toHaskellText . toADLTxt.apLeft) p
+                          ,(para.text. Text.unpack . toHaskellText . toADLTxt.apRight) p
                           ]
                         | p<- ps]
 
@@ -507,7 +508,7 @@ chpDiagnosis fSpec
                    -- Header:
                    [(plain.str.name.source) r]
                    -- Data rows:
-                   [ [(plain.str.toADLTxt.apLeft) p]
+                   [ [(plain.str . Text.unpack . toHaskellText . toADLTxt.apLeft) p]
                    | p <-take 10 ps --max 10 rows
                    ]
         else table -- No caption:
@@ -517,7 +518,7 @@ chpDiagnosis fSpec
                    -- Header:
                    [(plain.str.name.source) r , (plain.str.name.target) r ]
                    -- Data rows:
-                   [ [(plain.str.toADLTxt.apLeft) p,(plain.str.toADLTxt.apRight) p]
+                   [ [(plain.str . Text.unpack . toHaskellText . toADLTxt.apLeft) p,(plain.str . Text.unpack . toHaskellText . toADLTxt.apRight) p]
                    | p <-take 10 ps --max 10 rows
                    ]
 

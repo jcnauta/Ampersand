@@ -18,8 +18,8 @@ instance ToJSON MySQLInstaller where
   toJSON = amp2Jason
 instance JSON MultiFSpecs MySQLInstaller where
  fromAmpersand _ multi = MySQLInstaller
-        { msiJSONallDBstructQueries = generateDBstructQueries fSpec False
-        , msiJSONallDefPopQueries = generateInitialPopQueries fSpec
+        { msiJSONallDBstructQueries = map toHaskellText $ generateDBstructQueries fSpec False
+        , msiJSONallDefPopQueries = map toHaskellText $ generateInitialPopQueries fSpec
         }
   where
     fSpec = userFSpec multi
@@ -59,7 +59,7 @@ instance JSON MultiFSpecs MetaPopulation where
 instance JSON A_Concept AtomValuesOfConcept where
  fromAmpersand multi cpt = AtomValuesOfConcept
    { avcJSONconcept = Text.pack (name cpt)
-   , avcJSONatoms   = map (Text.pack . toADLTxt) (atomsBySmallestConcept grindedFSpec cpt)
+   , avcJSONatoms   = map (toHaskellText . toADLTxt) (atomsBySmallestConcept grindedFSpec cpt)
    }
   where 
    grindedFSpec = fromMaybe ftl (metaFSpec multi)
@@ -75,7 +75,7 @@ instance JSON Relation PairsOfRelation where
      where ftl = fatal "There is no grinded fSpec."
 instance JSON AAtomPair JPair where
   fromAmpersand _ p = JPair
-    { prJSONsrc = Text.pack . toADLTxt . apLeft $ p 
-    , prJSONtgt = Text.pack . toADLTxt . apRight $ p
+    { prJSONsrc = toHaskellText .  toADLTxt . apLeft $ p 
+    , prJSONtgt = toHaskellText .  toADLTxt . apRight $ p
     }
 

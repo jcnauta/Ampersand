@@ -4,10 +4,11 @@ module Ampersand.Prototype.PHP
          , signalTableSpec
          , sessionTableSpec
          , plug2TableSpec
-         , quotedTableName,attributeNames
+         , quotedTableName, attributeNames, quotedAttName
          , createTempDatabase
          , tempDbName
          , tableSpec2Queries
+         , tsName
          , SqlQuery
          , sqlQuery2Text
          , additionalDatabaseSettings
@@ -192,7 +193,7 @@ sessionTableSpec =
 
 
 -- evaluate normalized exp in SQL
-evaluateExpSQL :: FSpec -> SQLText -> Expression -> IO [(String,String)]
+evaluateExpSQL :: FSpec -> SQLText -> Expression -> IO [(SQLText,SQLText)]
 evaluateExpSQL fSpec dbNm exp =
   -- verboseLn (getOpts fSpec) ("evaluateExpSQL fSpec "++showA exp)
   -- verboseLn (getOpts fSpec) (intercalate "\n" . showPrf showA . cfProof (getOpts fSpec)) exp
@@ -201,14 +202,14 @@ evaluateExpSQL fSpec dbNm exp =
  where violationsExpr = conjNF (getOpts fSpec) exp
        violationsQuery = prettySQLQuery 26 fSpec violationsExpr
 
-performQuery :: FSpec -> SQLText -> SQLText -> IO [(String,String)]
+performQuery :: FSpec -> SQLText -> SQLText -> IO [(SQLText,SQLText)]
 performQuery fSpec dbNm query =
  do { queryResult <- executePHPText php
     ; if "Error" `isPrefixOf` queryResult -- not the most elegant way, but safe since a correct result will always be a list
       then do verboseLn opts{verboseP=True} ("\n******Problematic query:\n"<>showQuery<>"\n******")
               fatal ("PHP/SQL problem: "<>queryResult)
       else case reads queryResult of
-             [(pairs,"")] -> return pairs
+             [(pairs,"")] -> return (map pair2SQLText pairs)
              _            -> fatal (  "Parse error on php result: \n"
                                     <>(unlines . indent 5 . lines $ queryResult)
                                     <>"\nOriginal query:\n"
@@ -216,6 +217,9 @@ performQuery fSpec dbNm query =
                                    )
     } 
    where
+    pair2SQLText :: (String,String) -> (SQLText,SQLText)
+    pair2SQLText (a,b) = (f a, f b)
+      where f = toSQL . Text.pack
     showQuery = unlines . showNumbered . lines . Text.unpack . toHaskellText $ query
     showNumbered :: [String] -> [String]
     showNumbered xs = map makeLine (zip [1::Int  ..] xs)
@@ -407,7 +411,7 @@ createTempDatabase fSpec =
           tblRecords 
              -> [ toPHP "$sqlQuery="<>
                          safePHPString ( toSQL "INSERT INTO "<>(safeObjectName . toSQL . Text.pack . name $ plug)
-                                       <>toSQL " ("<>intercalateT (toSQL ",") (map quotedAttName (plugAttributes plug))<>toSQL ")"
+                                       <>toSQL "   ("<>intercalateT (toSQL ",") (map quotedAttName (plugAttributes plug))<>toSQL ")"
                                        <>indnt 14<>toSQL "VALUES " <> intercalateT (indnt 19<>toSQL ", ") [ toSQL "(" <>valuechain md<>toSQL ")" | md<-tblRecords]
                                        <>indnt 10
                                        )<>";"
