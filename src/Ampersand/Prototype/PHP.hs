@@ -62,11 +62,11 @@ createTablePHP :: TableSpec -> [PHPText]
 createTablePHP tSpec =
   map (toPHP . (("// "<>) . Text.pack)) (tsCmnt tSpec) <>
   [-- Drop table if it already exists
-    toPHP "if($columns = mysqli_query($DB_link, "<>safePHP (toSQL "SHOW COLUMNS FROM "<>quotedTableName tSpec)<>")){"
-  , toPHP "    mysqli_query($DB_link, "<>safePHP (toSQL "DROP TABLE "<>quotedTableName tSpec)<>");"
+    toPHP "if($columns = mysqli_query($DB_link, "<>safePHPString (toSQL "SHOW COLUMNS FROM "<>quotedTableName tSpec)<>")){"
+  , toPHP "    mysqli_query($DB_link, "<>safePHPString (toSQL "DROP TABLE "<>quotedTableName tSpec)<>");"
   , toPHP "}"
   ] <>
-  [ toPHP "$sql="<>(safePHP . unlinesT $ createTableSql True tSpec)<>";"
+  [ toPHP "$sql="<>(safePHPString . unlinesT $ createTableSql True tSpec)<>";"
   , toPHP "mysqli_query($DB_link,$sql);" 
   , toPHP "if($err=mysqli_error($DB_link)) {"
   , toPHP "  $error=true; echo $err.'<br />';"
@@ -322,7 +322,7 @@ connectToTheDatabasePHP =
     , toPHP "  }"
     , toPHP ""
     ]<>
-    [ toPHP "$sql="<>safePHPString(toSQL "SET SESSION sql_mode = "<>safeObjectName "ANSI,TRADITIONAL") <>";"
+    [ toPHP "$sql="<>safePHPString(toSQL "SET SESSION sql_mode = "<>safeLiteral "ANSI,TRADITIONAL") <>";"
                                                             -- ANSI because of the syntax of the generated SQL
                                                             -- TRADITIONAL because of some more safety
     , toPHP "if (!mysqli_query($DB_link,$sql)) {"
@@ -331,7 +331,7 @@ connectToTheDatabasePHP =
     , toPHP ""
     ]
 safePHPString :: SQLText -> PHPText
-safePHPString = doubleQuote . safePHP
+safePHPString = doubleQuote . toPHP . toHaskellText
 createTempDatabase :: FSpec -> IO ()
 createTempDatabase fSpec =
  do { --dump ">>>INPUT>>>" (Text.lines $ showPHP phpStr) 
@@ -378,7 +378,7 @@ createTempDatabase fSpec =
     ]<> 
     [ toPHP "$DB_name="<>safePHPString (tempDbName (getOpts fSpec))<>";"
     , toPHP "// Drop the database if it exists"
-    , toPHP "$sql="<>safePHPString(toSQL "DROP DATABASE $DB_name"<>";")
+    , toPHP "$sql="<>safePHPString(toSQL "DROP DATABASE $DB_name")<>";"
     , toPHP "mysqli_query($DB_link,$sql);"
     , toPHP "// Don't bother about the error if the database didn't exist..."
     , toPHP ""

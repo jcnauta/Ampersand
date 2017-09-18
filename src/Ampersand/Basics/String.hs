@@ -184,9 +184,9 @@ convertFrom SQL txt =
       | c == '\\' -> case Text.uncons cs of
                        Nothing -> fatal "Last character of SQLText is '\\', which should not happen!"
                        Just (c' , cs')
-                         | c' == '\"' -> "\"" <> convertFrom SQL cs'
-                         | c' == '\\' -> "\\" <> convertFrom SQL cs'
-                         | otherwise  -> fatal $ "A character of SQL Text is '\\', followed by a character '"++[c]++"', which should not happen!"
+                         | c' == '\"' -> "\\\"" <> convertFrom SQL cs'
+                         | c' == '\\' -> "\\\\" <> convertFrom SQL cs'
+                         | otherwise  -> fatal $ "A character of SQL Text is '"++[c]++"', followed by a character '"++[c']++"' chr("++show(ord c')++"), which should not happen!"
       | otherwise -> c `Text.cons` convertFrom SQL cs
 convertFrom PHP txt =
   case Text.uncons txt of
@@ -195,9 +195,9 @@ convertFrom PHP txt =
       | c == '\\' -> case Text.uncons cs of
                        Nothing -> fatal "Last character of PHPText is '\\', which should not happen!"
                        Just (c' , cs')
-                         | c' == '\"' -> "\"" <> convertFrom PHP cs'
-                         | c' == '\\' -> "\\" <> convertFrom PHP cs'
-                         | otherwise  -> fatal $ "A character of PHP Text is '\\', followed by a character '"++[c']++"' chr("++show(ord c')++"), which should not happen!"
+                         | c' == '\"' -> "\\\"" <> convertFrom PHP cs'
+                         | c' == '\\' -> "\\\\" <> convertFrom PHP cs'
+                         | otherwise  -> fatal $ "A character of PHP Text is '"++[c]++"', followed by a character '"++[c']++"' chr("++show(ord c')++"), which should not happen!"
       | otherwise -> c `Text.cons` convertFrom PHP cs
 convertFrom ADL txt =
   case Text.uncons txt of
