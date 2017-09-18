@@ -197,7 +197,7 @@ convertFrom PHP txt =
                        Just (c' , cs')
                          | c' == '\"' -> "\"" <> convertFrom PHP cs'
                          | c' == '\\' -> "\\" <> convertFrom PHP cs'
-                         | otherwise  -> fatal $ "A character of PHP Text is '\\', followed by a character '"++[c]++"', which should not happen!"
+                         | otherwise  -> fatal $ "A character of PHP Text is '\\', followed by a character '"++[c']++"' chr("++show(ord c')++"), which should not happen!"
       | otherwise -> c `Text.cons` convertFrom PHP cs
 convertFrom ADL txt =
   case Text.uncons txt of
